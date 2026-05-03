@@ -1,3 +1,24 @@
+SPDX-License-Identifier: GPL-3.0-or-later
+
+Farkle Score — https://github.com/fennelouski/farkle-score
+
+Copyright (C) 2026 Nathan Fennel
+
+You may use, copy, modify, and distribute this software under the
+terms of the GNU General Public License v3 (or any later version)
+printed below.
+
+In short: keep copyright and license notices (attribution), and if you
+distribute a modified version you must license it under GPLv3-or-later
+and provide corresponding source so recipients can study and further
+share changes. That is how improvements stay available to merge back into
+this project and the wider community.
+
+The license text that follows is the canonical GNU GPLv3 and must not be
+altered.
+
+------------------------------------------------------------------------
+
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 

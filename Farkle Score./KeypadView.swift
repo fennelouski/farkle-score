@@ -14,45 +14,81 @@ struct KeypadView: View {
     var onDoubleZero: () -> Void
     var onBackspace: () -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 10), count: 3)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
+    @ScaledMetric(relativeTo: .title2) private var keyMinHeight = AppTheme.keypadKeyMinHeight
+
+    private var columnCount: Int {
+        dynamicTypeSize >= .accessibility3 ? 2 : 3
+    }
+
+    private var columns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: 10), count: columnCount)
+    }
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(1...9, id: \.self) { n in
-                keyButton(title: "\(n)") {
+                keyButton(
+                    title: "\(n)",
+                    accessibilityLabel: "\(n)",
+                    accessibilityHint: "Adds digit to the turn score"
+                ) {
                     keypadHaptic()
                     onDigit("\(n)")
                 }
             }
-            keyButton(title: "0") {
+            keyButton(
+                title: "0",
+                accessibilityLabel: "0",
+                accessibilityHint: "Adds digit to the turn score"
+            ) {
                 keypadHaptic()
                 onDigit("0")
             }
-            keyButton(title: "00") {
+            keyButton(
+                title: "00",
+                accessibilityLabel: "Double zero",
+                accessibilityHint: "Adds two zeros to the turn score"
+            ) {
                 keypadHaptic()
                 onDoubleZero()
             }
-            keyButton(title: "⌫") {
+            keyButton(
+                title: "⌫",
+                accessibilityLabel: "Backspace",
+                accessibilityHint: "Removes the last digit from the score input"
+            ) {
                 keypadHaptic()
                 onBackspace()
             }
         }
     }
 
-    private func keyButton(title: String, action: @escaping () -> Void) -> some View {
+    private func keyButton(
+        title: String,
+        accessibilityLabel: String,
+        accessibilityHint: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(.title2, design: .rounded).weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: 52)
+                .frame(minHeight: keyMinHeight)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                         .fill(AppTheme.keypadButtonFill)
-                        .overlay(RoundedRectangle(cornerRadius: AppTheme.cornerRadius).stroke(AppTheme.cardStroke))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast))
+                        )
                 )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
     }
 
     private func keypadHaptic() {

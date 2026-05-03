@@ -1,0 +1,70 @@
+# Local equivalents (run from repository root):
+#
+#   xcodebuild -list -project "Farkle Score..xcodeproj"
+#
+#   # Unit tests only (scheme shares Farkle Score.Tests; UITests not included)
+#   xcodebuild test \
+#     -project "Farkle Score..xcodeproj" \
+#     -scheme "Farkle Score." \
+#     -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.4' \
+#     -only-testing:"Farkle Score.Tests"
+#
+#   xcodebuild test \
+#     -project "Farkle Score..xcodeproj" \
+#     -scheme "Farkle Score." \
+#     -destination 'platform=macOS,arch=arm64' \
+#     -only-testing:"Farkle Score.Tests"
+#
+# Requires Xcode / SDKs matching the project (IPhoneOS / macOS deployment in Xcode 26.x).
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  unit-tests-ios-simulator:
+    name: Unit tests (iOS Simulator)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Select first available iPhone simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          UDID="$(python3 -c "import json,subprocess as s;d=json.loads(s.check_output(['xcrun','simctl','list','devices','available','-j'],text=True));u=[x for rt,v in d.get('devices',{}).items() if 'iOS' in rt for x in v if x.get('isAvailable') and 'iPhone' in x.get('name','')];print(u[0]['udid'])")"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project "Farkle Score..xcodeproj" \
+            -scheme "Farkle Score." \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:"Farkle Score.Tests"
+
+  unit-tests-macos:
+    name: Unit tests (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project "Farkle Score..xcodeproj" \
+            -scheme "Farkle Score." \
+            -destination 'platform=macOS,arch=arm64' \
+            -only-testing:"Farkle Score.Tests"

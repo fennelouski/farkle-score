@@ -67,6 +67,7 @@ struct MainPanelView: View {
             }
             .font(.title3)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var undoButton: some View {
@@ -88,6 +89,7 @@ struct MainPanelView: View {
         )
         .disabled(store.history.isEmpty)
         .opacity(store.history.isEmpty ? 0.4 : 1)
+        .accessibilityHint("Removes the last scored entry from history.")
         .frame(maxWidth: horizontalSizeClass == .compact ? .infinity : nil, alignment: .trailing)
     }
 
@@ -106,6 +108,7 @@ struct MainPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(AppTheme.mutedLabel)
+                .accessibilityHint("Shows all score entries.")
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
@@ -119,6 +122,7 @@ struct MainPanelView: View {
                     ForEach(Array(recentEntries.enumerated()), id: \.element.id) { index, entry in
                         if index > 0 {
                             Divider()
+                                .accessibilityHidden(true)
                                 .frame(height: 36)
                                 .background(AppTheme.cardStroke)
                                 .padding(.horizontal, 8)
@@ -145,6 +149,7 @@ struct MainPanelView: View {
         let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
         let idx = store.playerColorIndex(for: entry.playerId) ?? 0
         let color = AppTheme.avatarColor(index: idx)
+        let timeString = entry.timestamp.formatted(date: .omitted, time: .shortened)
 
         return HStack(spacing: 6) {
             Text(name)
@@ -158,6 +163,8 @@ struct MainPanelView: View {
                 .foregroundStyle(AppTheme.mutedLabel)
         }
         .padding(.horizontal, 12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name), plus \(AppTheme.formatScore(entry.amount)) points, at \(timeString)")
     }
 
     private var historySheet: some View {
@@ -165,16 +172,19 @@ struct MainPanelView: View {
             List {
                 ForEach(Array(store.history.reversed())) { entry in
                     let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
-                    let idx = store.playerColorIndex(for: entry.playerId) ?? 0
+                    let colorIndex = store.playerColorIndex(for: entry.playerId) ?? 0
+                    let timeFull = entry.timestamp.formatted(date: .omitted, time: .standard)
                     HStack {
                         Text(name)
-                            .foregroundStyle(AppTheme.avatarColor(index: idx))
+                            .foregroundStyle(AppTheme.avatarColor(index: colorIndex))
                         Spacer()
                         Text("+\(AppTheme.formatScore(entry.amount))")
                         Text(entry.timestamp, format: .dateTime.hour().minute().second())
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(name), plus \(AppTheme.formatScore(entry.amount)) points, \(timeFull)")
                 }
             }
             .navigationTitle("History")

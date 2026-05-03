@@ -21,6 +21,7 @@ struct AddToScoreButton: View {
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                 .fill(AppTheme.primaryGreen)
         )
+        .accessibilityHint("Adds the entered amount to the current player's score.")
     }
 }
 
@@ -41,6 +42,7 @@ struct ClearInputButton: View {
                 .fill(AppTheme.keypadButtonFill)
                 .overlay(RoundedRectangle(cornerRadius: AppTheme.cornerRadius).stroke(AppTheme.cardStroke))
         )
+        .accessibilityHint("Clears the turn score entry without adding points.")
     }
 }
 

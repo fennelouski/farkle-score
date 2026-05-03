@@ -42,6 +42,7 @@ struct PlayerListView: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(AppTheme.mutedLabel)
                 .tint(AppTheme.accentBlue)
+                .accessibilityHint("When on, moves to the next player after each score is added.")
                 .padding(.vertical, 8)
 
             addPlayerButton

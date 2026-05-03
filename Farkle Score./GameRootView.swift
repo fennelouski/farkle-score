@@ -26,6 +26,7 @@ struct GameRootView: View {
                 .frame(minWidth: 260, idealWidth: 300, maxWidth: 340)
 
             Divider()
+                .accessibilityHidden(true)
                 .background(AppTheme.cardStroke)
 
             MainPanelView()

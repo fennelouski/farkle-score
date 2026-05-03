@@ -9,6 +9,9 @@ struct ScoreInputView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    @ScaledMetric(relativeTo: .largeTitle) private var inputCursorWidth: CGFloat = 3
+    @ScaledMetric(relativeTo: .largeTitle) private var inputCursorHeight: CGFloat = 36
+
     var body: some View {
         Group {
             if horizontalSizeClass == .compact {
@@ -72,16 +75,22 @@ struct ScoreInputView: View {
     private var inputDisplay: some View {
         HStack(alignment: .center, spacing: 6) {
             Text(AppTheme.formatInputDisplay(store.currentInput))
-                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(AppTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.45)
                 .contentTransition(.numericText())
                 .animation(.snappy, value: store.currentInput)
 
             RoundedRectangle(cornerRadius: 1)
                 .fill(AppTheme.accentYellow)
-                .frame(width: 3, height: 36)
-                .opacity(1)
+                .frame(width: inputCursorWidth, height: inputCursorHeight)
+                .accessibilityHidden(true)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Turn score")
+        .accessibilityValue(inputAccessibilityValue)
+        .accessibilityHint("Use the keypad or common scores, then add to score.")
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -90,6 +99,13 @@ struct ScoreInputView: View {
                 .fill(AppTheme.displayInset)
                 .overlay(RoundedRectangle(cornerRadius: AppTheme.cornerRadius).stroke(AppTheme.cardStroke))
         )
+    }
+
+    private var inputAccessibilityValue: String {
+        let n = store.parsedInputAmount
+        let formatted = AppTheme.formatScore(n)
+        let word = n == 1 ? "point" : "points"
+        return "\(formatted) \(word)"
     }
 
     private func cardBackground() -> some View {

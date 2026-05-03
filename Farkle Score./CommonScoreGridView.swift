@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
 import UIKit
 #endif
 
@@ -19,10 +19,14 @@ struct CommonScoreGridView: View {
     let presets: [CommonScorePreset]
     var onSelect: (Int) -> Void
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
-    ]
+    @ScaledMetric(relativeTo: .body) private var gridSpacing: CGFloat = 10
+
+    private var columns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: gridSpacing),
+            GridItem(.flexible(), spacing: gridSpacing),
+        ]
+    }
 
     static let farklePresets: [CommonScorePreset] = [
         CommonScorePreset(value: 100, label: "Single 1"),
@@ -38,7 +42,7 @@ struct CommonScoreGridView: View {
     ]
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
+        LazyVGrid(columns: columns, spacing: gridSpacing) {
             ForEach(presets) { preset in
                 Button {
                     presetHaptic()
@@ -55,6 +59,7 @@ struct CommonScoreGridView: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
                     }
+                    .accessibilityElement(children: .ignore)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 6)
@@ -65,12 +70,19 @@ struct CommonScoreGridView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(presetAccessibilityLabel(preset))
+                .accessibilityHint("Sets the turn score to this value.")
             }
         }
     }
 
+    private func presetAccessibilityLabel(_ preset: CommonScorePreset) -> String {
+        let pointsWord = preset.value == 1 ? "point" : "points"
+        return "\(AppTheme.formatScore(preset.value)) \(pointsWord), \(preset.label)"
+    }
+
     private func presetHaptic() {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
         let g = UIImpactFeedbackGenerator(style: .light)
         g.impactOccurred()
 #endif

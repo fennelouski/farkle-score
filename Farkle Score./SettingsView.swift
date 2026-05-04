@@ -187,6 +187,7 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("App Store")
+                    .accessibilityIdentifier("farkle.settings.appStoreSectionHeader")
             }
         }
 #if os(macOS)

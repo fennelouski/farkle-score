@@ -108,13 +108,22 @@ final class Farkle_Score_UITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
+        /// Compact layout embeds the player column in a scroll view; ensure the header (gear) is on-screen.
+        if app.scrollViews.firstMatch.waitForExistence(timeout: 3) {
+            for _ in 0 ..< 4 where !app.buttons["Settings"].exists {
+                app.scrollViews.firstMatch.swipeDown(velocity: .fast)
+            }
+        }
+
         let settingsButton = app.buttons["Settings"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 8), "Settings button must be tappable")
         settingsButton.tap()
 
-        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+
+        let appStoreHeader = app.descendants(matching: .any)["farkle.settings.appStoreSectionHeader"]
         XCTAssertTrue(
-            app.staticTexts["App Store"].waitForExistence(timeout: 3),
+            appStoreHeader.waitForExistence(timeout: 5),
             "Settings must include the App Store section for policy/support links"
         )
     }

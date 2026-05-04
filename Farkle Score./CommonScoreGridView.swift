@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-#if canImport(UIKit) && !os(visionOS)
+#if canImport(UIKit)
 import UIKit
 #endif
 
@@ -19,13 +19,12 @@ struct CommonScoreGridView: View {
     let presets: [CommonScorePreset]
     var onSelect: (Int) -> Void
 
-    @ScaledMetric(relativeTo: .body) private var gridSpacing: CGFloat = 10
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
 
     private var columns: [GridItem] {
-        [
-            GridItem(.flexible(), spacing: gridSpacing),
-            GridItem(.flexible(), spacing: gridSpacing),
-        ]
+        let count = dynamicTypeSize >= .accessibility3 ? 1 : 2
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
 
     static let farklePresets: [CommonScorePreset] = [
@@ -42,7 +41,7 @@ struct CommonScoreGridView: View {
     ]
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: gridSpacing) {
+        LazyVGrid(columns: columns, spacing: 10) {
             ForEach(presets) { preset in
                 Button {
                     presetHaptic()
@@ -51,7 +50,7 @@ struct CommonScoreGridView: View {
                     VStack(spacing: 4) {
                         Text(AppTheme.formatScore(preset.value))
                             .font(.system(.title3, design: .rounded).bold())
-                            .foregroundStyle(AppTheme.accentYellow)
+                            .foregroundStyle(AppTheme.accentYellow(contrast))
                         Text(preset.label)
                             .font(.caption2.weight(.medium))
                             .foregroundStyle(AppTheme.primaryText.opacity(0.85))
@@ -59,30 +58,29 @@ struct CommonScoreGridView: View {
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
                     }
-                    .accessibilityElement(children: .ignore)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .padding(.horizontal, 6)
                     .background(
                         RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                             .fill(AppTheme.keypadButtonFill)
-                            .overlay(RoundedRectangle(cornerRadius: AppTheme.cornerRadius).stroke(AppTheme.cardStroke))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                    .stroke(AppTheme.stroke(contrast))
+                            )
                     )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(presetAccessibilityLabel(preset))
-                .accessibilityHint("Sets the turn score to this value.")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(preset.label), \(AppTheme.spokenScore(preset.value))")
+                .accessibilityHint("Sets the turn score input to this value")
+                .accessibilityAddTraits(.isButton)
             }
         }
     }
 
-    private func presetAccessibilityLabel(_ preset: CommonScorePreset) -> String {
-        let pointsWord = preset.value == 1 ? "point" : "points"
-        return "\(AppTheme.formatScore(preset.value)) \(pointsWord), \(preset.label)"
-    }
-
     private func presetHaptic() {
-#if canImport(UIKit) && !os(visionOS)
+#if canImport(UIKit)
         let g = UIImpactFeedbackGenerator(style: .light)
         g.impactOccurred()
 #endif

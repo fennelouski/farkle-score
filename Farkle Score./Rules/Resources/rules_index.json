@@ -1,0 +1,60 @@
+{
+  "rulesets": [
+    {
+      "id": "farkle-cardgames-io",
+      "filename": "FARKLE_RULES.md",
+      "title": "Farkle (Cardgames.io)",
+      "subtitle": "Cardgames.io — common online ruleset",
+      "family": "farkle",
+      "sourceURL": "https://cardgames.io/blog/how-to-play-farkle/"
+    },
+    {
+      "id": "farkle-groupgames101",
+      "filename": "FARKLE_RULES_GROUPGAMES101.md",
+      "title": "Farkle (GroupGames101)",
+      "subtitle": "GroupGames101 — classic table, high straight",
+      "family": "farkle",
+      "sourceURL": "https://groupgames101.com/farkle-rules/"
+    },
+    {
+      "id": "farkle-farkle-games",
+      "filename": "FARKLE_RULES_FARKLE_GAMES.md",
+      "title": "Farkle (farkle.games)",
+      "subtitle": "Official rules summary — triple-Farkle penalty",
+      "family": "farkle",
+      "sourceURL": "https://farkle.games/official-rules/"
+    },
+    {
+      "id": "farkle-wikipedia-arnold",
+      "filename": "FARKLE_RULES_WIKIPEDIA_ARNOLD.md",
+      "title": "Farkle (Wikipedia / Arnold)",
+      "subtitle": "Wikipedia “standard scoring” — folk baseline",
+      "family": "farkle",
+      "sourceURL": "https://en.wikipedia.org/wiki/Farkle"
+    },
+    {
+      "id": "farkle-busche-neller-2017",
+      "filename": "FARKLE_RULES_BUSCHE_NELLER_2017.md",
+      "title": "Farkle (Busche & Neller, 2017)",
+      "subtitle": "Minimal scoring — research / reference ruleset",
+      "family": "farkle",
+      "sourceURL": "https://doi.org/10.1007/978-3-319-71649-7_6"
+    },
+    {
+      "id": "zilch-playr",
+      "filename": "ZILCH_RULES_PLAYR.md",
+      "title": "Zilch (Playr)",
+      "subtitle": "playr.co.uk — related push-your-luck variant",
+      "family": "zilch",
+      "sourceURL": "https://zilch.playr.co.uk/rules.php"
+    },
+    {
+      "id": "farkle-playmonster",
+      "filename": "FARKLE_RULES_PLAYMONSTER.md",
+      "title": "Farkle (PlayMonster retail)",
+      "subtitle": "Pocket Farkel–style — add file to bundle when available",
+      "family": "farkle",
+      "sourceURL": null
+    }
+  ]
+}

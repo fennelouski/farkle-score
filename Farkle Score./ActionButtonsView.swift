@@ -6,6 +6,7 @@
 import SwiftUI
 
 struct AddToScoreButton: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     var action: () -> Void
 
     var body: some View {
@@ -13,19 +14,22 @@ struct AddToScoreButton: View {
             Label("ADD TO SCORE", systemImage: "checkmark.circle.fill")
                 .font(.headline.weight(.bold))
                 .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
                 .padding(.vertical, 16)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.black)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.primaryGreen)
+                .fill(AppTheme.primaryGreen(contrast))
         )
-        .accessibilityHint("Adds the entered amount to the current player's score.")
+        .accessibilityLabel("Add to score")
+        .accessibilityHint("Adds the entered amount to the active player's score")
     }
 }
 
 struct ClearInputButton: View {
+    @Environment(\.colorSchemeContrast) private var contrast
     var action: () -> Void
 
     var body: some View {
@@ -33,6 +37,7 @@ struct ClearInputButton: View {
             Label("CLEAR", systemImage: "xmark.circle.fill")
                 .font(.headline.weight(.bold))
                 .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
                 .padding(.vertical, 16)
         }
         .buttonStyle(.plain)
@@ -40,9 +45,13 @@ struct ClearInputButton: View {
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                 .fill(AppTheme.keypadButtonFill)
-                .overlay(RoundedRectangle(cornerRadius: AppTheme.cornerRadius).stroke(AppTheme.cardStroke))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .stroke(AppTheme.stroke(contrast))
+                )
         )
-        .accessibilityHint("Clears the turn score entry without adding points.")
+        .accessibilityLabel("Clear")
+        .accessibilityHint("Clears the turn score input")
     }
 }
 

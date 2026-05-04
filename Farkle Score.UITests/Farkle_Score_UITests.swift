@@ -10,34 +10,80 @@ import XCTest
 final class Farkle_Score_UITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
     override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
     func testExample() throws {
-        // UI tests must launch the application that they test.
         let app = XCUIApplication()
         app.launch()
-
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
+    }
+
+    /// Regression guard: ensures key VoiceOver labels are present so future
+    /// refactors don't silently strip accessibility metadata.
+    @MainActor
+    func testCoreAccessibilityLabelsArePresent() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        func hasLabeledElement(_ label: String) -> Bool {
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", label))
+                .firstMatch
+                .exists
+        }
+
+        XCTAssertTrue(
+            hasLabeledElement("Add to score") && app.buttons["Add to score"].waitForExistence(timeout: 5),
+            "Add-to-score control must expose the 'Add to score' accessibility label"
+        )
+        XCTAssertTrue(
+            hasLabeledElement("Clear"),
+            "Clear control must expose the 'Clear' accessibility label"
+        )
+        XCTAssertTrue(
+            hasLabeledElement("Backspace"),
+            "Keypad ⌫ key must expose the 'Backspace' accessibility label"
+        )
+        XCTAssertTrue(
+            hasLabeledElement("Double zero"),
+            "Keypad 00 key must expose the 'Double zero' accessibility label"
+        )
+        XCTAssertTrue(
+            hasLabeledElement("New game"),
+            "New-game control must expose the 'New game' accessibility label"
+        )
+        XCTAssertTrue(
+            hasLabeledElement("Add player"),
+            "Add-player control must expose the 'Add player' accessibility label"
+        )
+        XCTAssertTrue(
+            hasLabeledElement("Undo last entry"),
+            "Undo control must expose the 'Undo last entry' accessibility label"
+        )
+
+        XCTAssertTrue(
+            hasLabeledElement("Players, 6 maximum"),
+            "Players section header must expose its expanded accessibility label"
+        )
+
+        // Player row labels are constructed as "<name>, position N, <score> points"
+        // so the existence of any element with a label that includes "position 1"
+        // is enough to confirm the combined row label is in place.
+        let firstRowPredicate = NSPredicate(format: "label CONTAINS 'position 1'")
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(firstRowPredicate).firstMatch.exists,
+            "First player row must expose a combined accessibility label including its position"
+        )
     }
 }

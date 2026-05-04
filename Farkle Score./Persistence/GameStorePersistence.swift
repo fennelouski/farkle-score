@@ -99,6 +99,14 @@ struct GameStorePersistence {
         try? FileManager.default.removeItem(at: fileURL)
     }
 
+    /// Content modification time of the session file, if present (used to compare against CloudKit session timestamps).
+    func sessionFileModificationDate() -> Date? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: fileURL.path) else { return nil }
+        let attrs = try? fm.attributesOfItem(atPath: fileURL.path)
+        return attrs?[.modificationDate] as? Date
+    }
+
     private struct SchemaProbe: Decodable {
         let schemaVersion: Int
     }

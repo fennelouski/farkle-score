@@ -7,10 +7,16 @@ import SwiftUI
 
 struct GameRootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var useCompact: Bool {
+        horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
+    }
 
     var body: some View {
         Group {
-            if horizontalSizeClass == .compact {
+            if useCompact {
                 compactLayout
             } else {
                 regularLayout
@@ -26,8 +32,7 @@ struct GameRootView: View {
                 .frame(minWidth: 260, idealWidth: 300, maxWidth: 340)
 
             Divider()
-                .accessibilityHidden(true)
-                .background(AppTheme.cardStroke)
+                .background(AppTheme.stroke(contrast))
 
             MainPanelView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

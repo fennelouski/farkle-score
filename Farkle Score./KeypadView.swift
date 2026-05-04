@@ -85,10 +85,10 @@ struct KeypadView: View {
                                 .stroke(AppTheme.stroke(contrast))
                         )
                 )
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityHint(accessibilityHint)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(accessibilityHint)
     }
 
     private func keypadHaptic() {

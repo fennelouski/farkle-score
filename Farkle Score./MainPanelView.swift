@@ -5,9 +5,16 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 struct MainPanelView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showFullHistory = false
 
     private var activeName: String {
@@ -16,6 +23,10 @@ struct MainPanelView: View {
 
     private var activeScore: Int {
         store.activePlayer?.score ?? 0
+    }
+
+    private var stackVertically: Bool {
+        horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
     }
 
     var body: some View {
@@ -33,7 +44,7 @@ struct MainPanelView: View {
 
     private var header: some View {
         Group {
-            if horizontalSizeClass == .compact {
+            if stackVertically {
                 VStack(alignment: .leading, spacing: 12) {
                     titleBlock
                     undoButton
@@ -55,26 +66,33 @@ struct MainPanelView: View {
                 .foregroundStyle(AppTheme.primaryText)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .accessibilityHidden(true)
 
             HStack(spacing: 4) {
                 Text("Current Score:")
-                    .foregroundStyle(AppTheme.mutedLabel)
+                    .foregroundStyle(AppTheme.muted(contrast))
                 Text(AppTheme.formatScore(activeScore))
                     .fontWeight(.bold)
-                    .foregroundStyle(AppTheme.accentBlue)
-                    .contentTransition(.numericText())
-                    .animation(.snappy, value: activeScore)
+                    .foregroundStyle(AppTheme.accentBlue(contrast))
+                    .contentTransition(reduceMotion ? .identity : .numericText())
+                    .animation(reduceMotion ? nil : .snappy, value: activeScore)
             }
             .font(.title3)
+            .accessibilityHidden(true)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(activeName)'s turn. Current score \(AppTheme.spokenScore(activeScore)).")
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var undoButton: some View {
         Button {
-            withAnimation {
+            withAnimation(reduceMotion ? nil : .default) {
                 store.undoLastEntry()
             }
+            announce("Undid last score entry")
         } label: {
             Label("UNDO LAST ENTRY", systemImage: "arrow.uturn.backward")
                 .font(.caption.weight(.semibold))
@@ -82,15 +100,16 @@ struct MainPanelView: View {
                 .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(AppTheme.accentBlue)
+        .foregroundStyle(AppTheme.accentBlue(contrast))
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .stroke(AppTheme.accentBlue, lineWidth: 1)
+                .stroke(AppTheme.accentBlue(contrast), lineWidth: 1)
         )
         .disabled(store.history.isEmpty)
         .opacity(store.history.isEmpty ? 0.4 : 1)
-        .accessibilityHint("Removes the last scored entry from history.")
-        .frame(maxWidth: horizontalSizeClass == .compact ? .infinity : nil, alignment: .trailing)
+        .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .trailing)
+        .accessibilityLabel("Undo last entry")
+        .accessibilityHint("Removes the most recent score entry")
     }
 
     private var recentSection: some View {
@@ -98,7 +117,9 @@ struct MainPanelView: View {
             HStack {
                 Text("RECENT ENTRIES")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.mutedLabel)
+                    .foregroundStyle(AppTheme.muted(contrast))
+                    .accessibilityLabel("Recent entries")
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Button {
                     showFullHistory = true
@@ -107,14 +128,15 @@ struct MainPanelView: View {
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.mutedLabel)
-                .accessibilityHint("Shows all score entries.")
+                .foregroundStyle(AppTheme.muted(contrast))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.cardStroke, lineWidth: 1)
+                        .stroke(AppTheme.stroke(contrast), lineWidth: 1)
                 )
+                .accessibilityLabel("View full history")
+                .accessibilityHint("Opens the complete list of score entries")
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -122,10 +144,10 @@ struct MainPanelView: View {
                     ForEach(Array(recentEntries.enumerated()), id: \.element.id) { index, entry in
                         if index > 0 {
                             Divider()
-                                .accessibilityHidden(true)
                                 .frame(height: 36)
-                                .background(AppTheme.cardStroke)
+                                .background(AppTheme.stroke(contrast))
                                 .padding(.horizontal, 8)
+                                .accessibilityHidden(true)
                         }
                         recentEntryCell(entry)
                     }
@@ -136,8 +158,12 @@ struct MainPanelView: View {
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                     .fill(AppTheme.cardFill.opacity(0.5))
-                    .overlay(RoundedRectangle(cornerRadius: AppTheme.cornerRadius).stroke(AppTheme.cardStroke))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                            .stroke(AppTheme.stroke(contrast))
+                    )
             )
+            .accessibilityLabel("Recent entries list")
         }
     }
 
@@ -148,8 +174,7 @@ struct MainPanelView: View {
     private func recentEntryCell(_ entry: ScoreEntry) -> some View {
         let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
         let idx = store.playerColorIndex(for: entry.playerId) ?? 0
-        let color = AppTheme.avatarColor(index: idx)
-        let timeString = entry.timestamp.formatted(date: .omitted, time: .shortened)
+        let color = AppTheme.avatarColor(index: idx, contrast: contrast)
 
         return HStack(spacing: 6) {
             Text(name)
@@ -160,11 +185,12 @@ struct MainPanelView: View {
                 .foregroundStyle(AppTheme.primaryText)
             Text(entry.timestamp, style: .time)
                 .font(.caption2)
-                .foregroundStyle(AppTheme.mutedLabel)
+                .foregroundStyle(AppTheme.muted(contrast))
         }
         .padding(.horizontal, 12)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name), plus \(AppTheme.formatScore(entry.amount)) points, at \(timeString)")
+        .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
+        .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .shortened))
     }
 
     private var historySheet: some View {
@@ -172,11 +198,10 @@ struct MainPanelView: View {
             List {
                 ForEach(Array(store.history.reversed())) { entry in
                     let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
-                    let colorIndex = store.playerColorIndex(for: entry.playerId) ?? 0
-                    let timeFull = entry.timestamp.formatted(date: .omitted, time: .standard)
+                    let idx = store.playerColorIndex(for: entry.playerId) ?? 0
                     HStack {
                         Text(name)
-                            .foregroundStyle(AppTheme.avatarColor(index: colorIndex))
+                            .foregroundStyle(AppTheme.avatarColor(index: idx, contrast: contrast))
                         Spacer()
                         Text("+\(AppTheme.formatScore(entry.amount))")
                         Text(entry.timestamp, format: .dateTime.hour().minute().second())
@@ -184,7 +209,8 @@ struct MainPanelView: View {
                             .foregroundStyle(.secondary)
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(name), plus \(AppTheme.formatScore(entry.amount)) points, \(timeFull)")
+                    .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
+                    .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .standard))
                 }
             }
             .navigationTitle("History")
@@ -194,6 +220,12 @@ struct MainPanelView: View {
                 }
             }
         }
+    }
+
+    private func announce(_ message: String) {
+#if canImport(UIKit)
+        UIAccessibility.post(notification: .announcement, argument: message)
+#endif
     }
 }
 

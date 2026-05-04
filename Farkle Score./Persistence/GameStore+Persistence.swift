@@ -33,5 +33,6 @@ extension GameStore {
         activePlayerIndex = min(max(0, state.activePlayerIndex), upper)
         history = state.history
         autoAdvanceAfterScore = state.autoAdvanceAfterScore
+        clearInput()
     }
 }

@@ -36,6 +36,12 @@ final class Farkle_Score_UITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
+        /// On compact + scroll layout, score controls can start below the fold; scroll to build the full a11y tree.
+        if app.scrollViews.firstMatch.waitForExistence(timeout: 3) {
+            app.scrollViews.firstMatch.swipeUp(velocity: .fast)
+            app.scrollViews.firstMatch.swipeUp(velocity: .fast)
+        }
+
         func hasLabeledElement(_ label: String) -> Bool {
             app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label))
@@ -43,8 +49,18 @@ final class Farkle_Score_UITests: XCTestCase {
                 .exists
         }
 
+        func hasAccessibilityId(_ value: String) -> Bool {
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier == %@", value))
+                .firstMatch
+                .exists
+        }
+
+        let addToScore = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@", "Add to score"))
+            .firstMatch
         XCTAssertTrue(
-            hasLabeledElement("Add to score") && app.buttons["Add to score"].waitForExistence(timeout: 5),
+            addToScore.waitForExistence(timeout: 10),
             "Add-to-score control must expose the 'Add to score' accessibility label"
         )
         XCTAssertTrue(
@@ -52,12 +68,12 @@ final class Farkle_Score_UITests: XCTestCase {
             "Clear control must expose the 'Clear' accessibility label"
         )
         XCTAssertTrue(
-            hasLabeledElement("Backspace"),
-            "Keypad ⌫ key must expose the 'Backspace' accessibility label"
+            hasAccessibilityId("farkle.keypad.backspace") && hasLabeledElement("Backspace"),
+            "Keypad ⌫ key must use a stable a11y id and expose the 'Backspace' label"
         )
         XCTAssertTrue(
-            hasLabeledElement("Double zero"),
-            "Keypad 00 key must expose the 'Double zero' accessibility label"
+            hasAccessibilityId("farkle.keypad.doubleZero") && hasLabeledElement("Double zero"),
+            "Keypad 00 key must use a stable a11y id and expose the 'Double zero' label"
         )
         XCTAssertTrue(
             hasLabeledElement("New game"),

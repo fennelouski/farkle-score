@@ -9,12 +9,6 @@ import SwiftUI
 import UIKit
 #endif
 
-struct CommonScorePreset: Identifiable {
-    var id: Int { value }
-    let value: Int
-    let label: String
-}
-
 struct CommonScoreGridView: View {
     let presets: [CommonScorePreset]
     var onSelect: (Int) -> Void
@@ -26,19 +20,6 @@ struct CommonScoreGridView: View {
         let count = dynamicTypeSize >= .accessibility3 ? 1 : 2
         return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
-
-    static let farklePresets: [CommonScorePreset] = [
-        CommonScorePreset(value: 100, label: "Single 1"),
-        CommonScorePreset(value: 50, label: "Single 5"),
-        CommonScorePreset(value: 300, label: "Three of a Kind"),
-        CommonScorePreset(value: 400, label: "Four of a Kind"),
-        CommonScorePreset(value: 500, label: "Five of a Kind"),
-        CommonScorePreset(value: 600, label: "Six of a Kind"),
-        CommonScorePreset(value: 1000, label: "1K / Straight"),
-        CommonScorePreset(value: 1500, label: "1-6 Straight"),
-        CommonScorePreset(value: 2000, label: "Two Triples"),
-        CommonScorePreset(value: 3000, label: "Three Triples"),
-    ]
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
@@ -88,7 +69,10 @@ struct CommonScoreGridView: View {
 }
 
 #Preview {
-    CommonScoreGridView(presets: CommonScoreGridView.farklePresets, onSelect: { _ in })
-        .padding()
-        .background(AppTheme.background)
+    CommonScoreGridView(
+        presets: ScoringProfile.profile(for: ScoringProfile.defaultRulesetId).commonScorePresets(),
+        onSelect: { _ in }
+    )
+    .padding()
+    .background(AppTheme.background)
 }

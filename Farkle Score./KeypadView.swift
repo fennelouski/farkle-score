@@ -22,41 +22,55 @@ struct KeypadView: View {
         dynamicTypeSize >= .accessibility3 ? 2 : 3
     }
 
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 10), count: columnCount)
+    private var keyRows: [[KeypadKey]] {
+        let sequence: [KeypadKey] = (1...9).map { .digit(String($0)) } + [
+            .digit("0"),
+            .doubleZero,
+            .backspace,
+        ]
+        return sequence.chunked(into: columnCount)
     }
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(1...9, id: \.self) { n in
-                keyButton(
-                    title: "\(n)",
-                    accessibilityLabel: "\(n)",
-                    accessibilityHint: "Adds digit to the turn score"
-                ) {
-                    keypadHaptic()
-                    onDigit("\(n)")
+        VStack(spacing: 10) {
+            ForEach(Array(keyRows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 10) {
+                    ForEach(row, id: \.id) { key in
+                        keyView(for: key)
+                    }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func keyView(for key: KeypadKey) -> some View {
+        switch key {
+        case .digit(let d):
             keyButton(
-                title: "0",
-                accessibilityLabel: "0",
+                title: d,
+                accessibilityLabel: d,
+                accessibilityIdentifier: "farkle.keypad.digit.\(d)",
                 accessibilityHint: "Adds digit to the turn score"
             ) {
                 keypadHaptic()
-                onDigit("0")
+                onDigit(d)
             }
+        case .doubleZero:
             keyButton(
                 title: "00",
                 accessibilityLabel: "Double zero",
+                accessibilityIdentifier: "farkle.keypad.doubleZero",
                 accessibilityHint: "Adds two zeros to the turn score"
             ) {
                 keypadHaptic()
                 onDoubleZero()
             }
+        case .backspace:
             keyButton(
                 title: "⌫",
                 accessibilityLabel: "Backspace",
+                accessibilityIdentifier: "farkle.keypad.backspace",
                 accessibilityHint: "Removes the last digit from the score input"
             ) {
                 keypadHaptic()
@@ -68,6 +82,7 @@ struct KeypadView: View {
     private func keyButton(
         title: String,
         accessibilityLabel: String,
+        accessibilityIdentifier: String,
         accessibilityHint: String,
         action: @escaping () -> Void
     ) -> some View {
@@ -85,10 +100,11 @@ struct KeypadView: View {
                                 .stroke(AppTheme.stroke(contrast))
                         )
                 )
-                .accessibilityLabel(accessibilityLabel)
-                .accessibilityHint(accessibilityHint)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHint)
     }
 
     private func keypadHaptic() {
@@ -96,6 +112,34 @@ struct KeypadView: View {
         let g = UIImpactFeedbackGenerator(style: .light)
         g.impactOccurred()
 #endif
+    }
+}
+
+private enum KeypadKey: Hashable {
+    case digit(String)
+    case doubleZero
+    case backspace
+
+    var id: String {
+        switch self {
+        case .digit(let s): return "d-\(s)"
+        case .doubleZero: return "00"
+        case .backspace: return "bs"
+        }
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [] }
+        var result: [[Element]] = []
+        var i = startIndex
+        while i < endIndex {
+            let end = index(i, offsetBy: size, limitedBy: endIndex) ?? endIndex
+            result.append(Array(self[i..<end]))
+            i = end
+        }
+        return result
     }
 }
 

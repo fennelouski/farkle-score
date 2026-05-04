@@ -115,6 +115,7 @@ struct PlayerListView: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 14)
+                .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentBlue(contrast))
@@ -129,6 +130,7 @@ struct PlayerListView: View {
         .disabled(!store.canAddPlayer)
         .opacity(store.canAddPlayer ? 1 : 0.45)
         .padding(.bottom, 8)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Add player")
         .accessibilityHint(store.canAddPlayer ? "Opens a form to add a new player" : "Maximum number of players reached")
     }
@@ -142,6 +144,7 @@ struct PlayerListView: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 14)
+                .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentYellow(contrast))
@@ -153,6 +156,7 @@ struct PlayerListView: View {
                         .stroke(AppTheme.stroke(contrast))
                 )
         )
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("New game")
         .accessibilityHint("Resets all scores and clears the history")
     }

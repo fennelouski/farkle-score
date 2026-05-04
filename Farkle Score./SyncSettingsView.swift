@@ -8,10 +8,27 @@ import SwiftUI
 struct SyncSettingsView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(AppSettings.activeRuleSetIdStorageKey) private var activeRuleSetId: String = ScoringProfile.defaultRulesetId
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    Picker("Scoring ruleset", selection: $activeRuleSetId) {
+                        ForEach(RulesLibrary.allMetadata) { meta in
+                            Text(meta.title).tag(meta.id)
+                        }
+                    }
+                    .tint(AppTheme.accentBlue(contrast))
+                    Text(
+                        "Keypad quick scores and the scoring engine use this ruleset. Open the book icon for full rule text."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.muted(contrast))
+                } header: {
+                    Text("Game")
+                }
+
                 Section {
                     Toggle(
                         "Sync in-progress game",

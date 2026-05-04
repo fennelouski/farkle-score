@@ -16,6 +16,7 @@ struct AddToScoreButton: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 16)
+                .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.black)
@@ -23,6 +24,7 @@ struct AddToScoreButton: View {
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                 .fill(AppTheme.primaryGreen(contrast))
         )
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Add to score")
         .accessibilityHint("Adds the entered amount to the active player's score")
     }
@@ -39,6 +41,7 @@ struct ClearInputButton: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 16)
+                .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.primaryText)
@@ -50,6 +53,7 @@ struct ClearInputButton: View {
                         .stroke(AppTheme.stroke(contrast))
                 )
         )
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Clear")
         .accessibilityHint("Clears the turn score input")
     }

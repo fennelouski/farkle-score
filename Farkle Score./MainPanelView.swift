@@ -98,6 +98,7 @@ struct MainPanelView: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentBlue(contrast))
@@ -108,6 +109,7 @@ struct MainPanelView: View {
         .disabled(store.history.isEmpty)
         .opacity(store.history.isEmpty ? 0.4 : 1)
         .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .trailing)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Undo last entry")
         .accessibilityHint("Removes the most recent score entry")
     }

@@ -11,6 +11,8 @@ import UIKit
 
 struct ScoreInputView: View {
     @Environment(GameStore.self) private var store
+    @AppStorage(AppSettings.activeRuleSetIdStorageKey) private var activeRuleSetId: String = ScoringProfile.defaultRulesetId
+    @AppStorage(AppSettings.showRollPreviewStorageKey) private var showRollPreview: Bool = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
@@ -23,19 +25,44 @@ struct ScoreInputView: View {
     }
 
     var body: some View {
-        Group {
-            if stackVertically {
-                VStack(alignment: .leading, spacing: 16) {
-                    keypadColumn
-                    commonScoresColumn
-                }
-            } else {
-                HStack(alignment: .top, spacing: 16) {
-                    keypadColumn
-                    commonScoresColumn
+        VStack(alignment: .leading, spacing: 16) {
+            Group {
+                if stackVertically {
+                    VStack(alignment: .leading, spacing: 16) {
+                        keypadColumn
+                        commonScoresColumn
+                    }
+                } else {
+                    HStack(alignment: .top, spacing: 16) {
+                        keypadColumn
+                        commonScoresColumn
+                    }
                 }
             }
+
+            dicePreviewDisclosure
         }
+    }
+
+    private var dicePreviewDisclosure: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $showRollPreview) {
+                RollPreviewView(rules: scoringProfile) { value in
+                    store.setPreset(value)
+                }
+                .padding(.top, 12)
+            } label: {
+                Text("DICE PREVIEW")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.muted(contrast))
+                    .accessibilityLabel("Dice preview")
+                    .accessibilityAddTraits(.isHeader)
+            }
+            .tint(AppTheme.accentBlue(contrast))
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { cardBackground() }
     }
 
     private var keypadColumn: some View {
@@ -70,6 +97,14 @@ struct ScoreInputView: View {
         .background { cardBackground() }
     }
 
+    private var scoringProfile: ScoringProfile {
+        ScoringProfile.profile(for: activeRuleSetId)
+    }
+
+    private var activeRulesTitle: String {
+        RulesLibrary.metadata(id: activeRuleSetId)?.title ?? scoringProfile.rulesetId
+    }
+
     private var commonScoresColumn: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("COMMON SCORES")
@@ -78,7 +113,12 @@ struct ScoreInputView: View {
                 .accessibilityLabel("Common scores")
                 .accessibilityAddTraits(.isHeader)
 
-            CommonScoreGridView(presets: CommonScoreGridView.farklePresets) { value in
+            Text("Rules: \(activeRulesTitle)")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.muted(contrast).opacity(0.9))
+                .accessibilityLabel("Scoring rules: \(activeRulesTitle)")
+
+            CommonScoreGridView(presets: scoringProfile.commonScorePresets()) { value in
                 store.setPreset(value)
             }
 

@@ -15,7 +15,11 @@
 #     -destination 'platform=macOS,arch=arm64' \
 #     -only-testing:"Farkle Score.Tests"
 #
-# Requires Xcode / SDKs matching the project (IPhoneOS / macOS deployment in Xcode 26.x).
+# CI: The project uses IPHONEOS_DEPLOYMENT_TARGET / MACOSX_DEPLOYMENT_TARGET 26.4
+# (Xcode 26.x). `macos-latest` still resolves to macOS 15 with default Xcode 16.x,
+# which cannot build this project. We use the macOS 26 image and select Xcode 26.4.1
+# to match the SDK. If this step fails after a runner image update, check the
+# "Xcode" table in: https://github.com/actions/runner-images/blob/main/images/macos/macos-26-arm64-Readme.md
 
 name: CI
 
@@ -24,13 +28,17 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  workflow_dispatch:
 
 jobs:
   unit-tests-ios-simulator:
     name: Unit tests (iOS Simulator)
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.4.1
+        run: sudo xcode-select -s /Applications/Xcode_26.4.1.app/Contents/Developer
 
       - name: Xcode version
         run: xcodebuild -version
@@ -39,7 +47,7 @@ jobs:
         id: sim
         run: |
           set -euo pipefail
-          UDID="$(python3 -c "import json,subprocess as s;d=json.loads(s.check_output(['xcrun','simctl','list','devices','available','-j'],text=True));u=[x for rt,v in d.get('devices',{}).items() if 'iOS' in rt for x in v if x.get('isAvailable') and 'iPhone' in x.get('name','')];print(u[0]['udid'])")"
+          UDID="$(python3 -c "import json,subprocess as s;d=json.loads(s.check_output(['xcrun','simctl','list','devices','available','-j'],text=True));u=[x for rt,v in d.get('devices',{}).items() if 'iOS' in rt for x in v if x.get('isAvailable') and 'iPhone' in x.get('name','')];assert u,'No iPhone sim';print(u[0]['udid'])")"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
 
       - name: Run tests
@@ -53,9 +61,12 @@ jobs:
 
   unit-tests-macos:
     name: Unit tests (macOS)
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.4.1
+        run: sudo xcode-select -s /Applications/Xcode_26.4.1.app/Contents/Developer
 
       - name: Xcode version
         run: xcodebuild -version

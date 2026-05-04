@@ -410,3 +410,85 @@ struct PersistenceTests {
         return dir.appendingPathComponent("session.json")
     }
 }
+
+// MARK: - Rules-aware scoring
+
+struct FarkleScoringEngineTests {
+
+    private let straightRun = [1, 2, 3, 4, 5, 6]
+    private let threeOnes = [1, 1, 1, 2, 3, 4]
+    private let threePairs234 = [2, 2, 3, 3, 4, 4]
+    private let farkleNoPoints = [2, 3, 4, 4, 6, 6]
+
+    @Test(arguments: [
+        ("farkle-wikipedia-arnold", 2_500),
+        ("farkle-cardgames-io", 2_500),
+        ("farkle-groupgames101", 3_000),
+        ("farkle-farkle-games", 1_000),
+        ("zilch-playr", 1_500),
+        ("farkle-playmonster", 2_500),
+    ])
+    func straightPointsVaryByRuleset(rulesetId: String, expected: Int) {
+        let rules = ScoringProfile.profile(for: rulesetId)
+        let c = FarkleScoringEngine.makeCounts(from: straightRun)
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: rules) == expected)
+    }
+
+    @Test(arguments: [
+        ("farkle-wikipedia-arnold", 1_000),
+        ("farkle-playmonster", 300),
+    ])
+    func threeOnesFolkVsRetail(rulesetId: String, expected: Int) {
+        let rules = ScoringProfile.profile(for: rulesetId)
+        let c = FarkleScoringEngine.makeCounts(from: threeOnes)
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: rules) == expected)
+    }
+
+    @Test(arguments: [
+        ("farkle-wikipedia-arnold", 1_500),
+        ("farkle-farkle-games", 750),
+    ])
+    func threePairsDiffer(rulesetId: String, expected: Int) {
+        let rules = ScoringProfile.profile(for: rulesetId)
+        let c = FarkleScoringEngine.makeCounts(from: threePairs234)
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: rules) == expected)
+    }
+
+    @Test func buscheStraightIsOnlySingles() {
+        let rules = ScoringProfile.profile(for: "farkle-busche-neller-2017")
+        let c = FarkleScoringEngine.makeCounts(from: straightRun)
+        // Only 1 and 5 score; one each → 150
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: rules) == 150)
+        #expect(FarkleScoringEngine.isHotDice(counts: c, rules: rules) == false)
+    }
+
+    @Test func zilchFourTwos() {
+        let rules = ScoringProfile.profile(for: "zilch-playr")
+        let c = FarkleScoringEngine.makeCounts(from: [2, 2, 2, 2, 3, 4])
+        // Four of a kind: triple 200 × 2 = 400; leftover 3,4 score 0
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: rules) == 400)
+    }
+
+    @Test func wrongRulesetChangesSameDice() {
+        let c = FarkleScoringEngine.makeCounts(from: threeOnes)
+        let arnold = ScoringProfile.profile(for: "farkle-wikipedia-arnold")
+        let retail = ScoringProfile.profile(for: "farkle-playmonster")
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: arnold) == 1_000)
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: retail) == 300)
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: arnold)
+            != FarkleScoringEngine.maximumPoints(counts: c, rules: retail))
+    }
+
+    @Test func isFarkleWhenNothingScores() {
+        let rules = ScoringProfile.profile(for: ScoringProfile.defaultRulesetId)
+        let c = FarkleScoringEngine.makeCounts(from: farkleNoPoints)
+        #expect(FarkleScoringEngine.maximumPoints(counts: c, rules: rules) == 0)
+        #expect(FarkleScoringEngine.isFarkle(counts: c, rules: rules))
+    }
+
+    @Test func hotDiceStraightUsesAllSix() {
+        let rules = ScoringProfile.profile(for: "farkle-cardgames-io")
+        let c = FarkleScoringEngine.makeCounts(from: straightRun)
+        #expect(FarkleScoringEngine.isHotDice(counts: c, rules: rules))
+    }
+}

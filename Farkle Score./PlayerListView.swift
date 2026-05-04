@@ -9,9 +9,13 @@ struct PlayerListView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var showAddPlayerSheet = false
-    @State private var showSyncSettings = false
+    @State private var showSettings = false
     @State private var showRulesLibrary = false
     @State private var newPlayerName = ""
+    @State private var showCustomizeAvatar = false
+    @State private var draftAvatarEmoji: String?
+    @State private var draftAvatarPhotoFileName: String?
+    @State private var draftPlayerPreviewId = UUID()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -31,6 +35,7 @@ struct PlayerListView: View {
                         PlayerRowView(
                             index: index,
                             player: player,
+                            allPlayers: store.players,
                             isActive: index == store.activePlayerIndex,
                             onSelect: { store.selectPlayer(at: index) }
                         )
@@ -57,11 +62,20 @@ struct PlayerListView: View {
         .sheet(isPresented: $showAddPlayerSheet) {
             addPlayerSheet
         }
-        .sheet(isPresented: $showSyncSettings) {
-            SyncSettingsView()
+        .sheet(isPresented: $showCustomizeAvatar) {
+            CustomizePlayerAvatarSheet(
+                avatarEmoji: $draftAvatarEmoji,
+                avatarPhotoFileName: $draftAvatarPhotoFileName
+            )
+            .farkleSheetChrome()
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .farkleSheetChrome()
         }
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
+                .farkleSheetChrome(detents: [.large])
         }
     }
 
@@ -89,15 +103,15 @@ struct PlayerListView: View {
                 .accessibilityLabel("Rule references")
 
                 Button {
-                    showSyncSettings = true
+                    showSettings = true
                 } label: {
-                    Image(systemName: "icloud")
+                    Image(systemName: "gearshape.fill")
                         .font(.title3)
                         .foregroundStyle(AppTheme.accentBlue(contrast))
                         .padding(8)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("iCloud sync settings")
+                .accessibilityLabel("Settings")
             }
         }
         .accessibilityElement(children: .ignore)
@@ -108,6 +122,9 @@ struct PlayerListView: View {
     private var addPlayerButton: some View {
         Button {
             newPlayerName = ""
+            draftAvatarEmoji = nil
+            draftAvatarPhotoFileName = nil
+            draftPlayerPreviewId = UUID()
             showAddPlayerSheet = true
         } label: {
             Label("ADD PLAYER", systemImage: "plus.circle.fill")
@@ -164,6 +181,30 @@ struct PlayerListView: View {
     private var addPlayerSheet: some View {
         NavigationStack {
             Form {
+                Section {
+                    AddPlayerAvatarPreview(
+                        store: store,
+                        draftPlayerId: draftPlayerPreviewId,
+                        newPlayerName: newPlayerName,
+                        draftEmoji: draftAvatarEmoji,
+                        draftPhotoFileName: draftAvatarPhotoFileName
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+
+                    Button {
+                        showCustomizeAvatar = true
+                    } label: {
+                        Label("Customize avatar…", systemImage: "person.crop.circle.badge.plus")
+                    }
+                } header: {
+                    Text("Avatar")
+                } footer: {
+                    Text("Defaults to initials. Open customize to add an emoji or photo.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.muted(contrast))
+                }
+
                 TextField("Name", text: $newPlayerName)
 #if os(iOS)
                     .textInputAutocapitalization(.words)
@@ -178,7 +219,11 @@ struct PlayerListView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        store.addPlayer(name: newPlayerName.isEmpty ? nil : newPlayerName)
+                        store.addPlayer(
+                            name: newPlayerName.isEmpty ? nil : newPlayerName,
+                            avatarEmoji: draftAvatarEmoji,
+                            avatarPhotoFileName: draftAvatarPhotoFileName
+                        )
                         showAddPlayerSheet = false
                     }
                     .disabled(!store.canAddPlayer)
@@ -186,7 +231,7 @@ struct PlayerListView: View {
             }
         }
 #if os(iOS)
-        .presentationDetents([.medium])
+        .farkleSheetChrome()
 #endif
     }
 }

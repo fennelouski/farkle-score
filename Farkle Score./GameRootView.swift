@@ -23,6 +23,7 @@ struct GameRootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)
         .background(AppTheme.background)
     }
 

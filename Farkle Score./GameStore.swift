@@ -132,13 +132,22 @@ final class GameStore {
         }
     }
 
-    func addPlayer(name: String? = nil) {
+    func addPlayer(
+        name: String? = nil,
+        avatarEmoji: String? = nil,
+        avatarPhotoFileName: String? = nil
+    ) {
         guard canAddPlayer else { return }
         let n = players.count + 1
         let label = name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             ? name!.trimmingCharacters(in: .whitespacesAndNewlines)
             : "Player \(n)"
-        players.append(Player(name: label, score: 0))
+        players.append(Player(
+            name: label,
+            score: 0,
+            avatarEmoji: avatarEmoji,
+            avatarPhotoFileName: avatarPhotoFileName
+        ))
     }
 
     func playerColorIndex(for playerId: UUID) -> Int? {

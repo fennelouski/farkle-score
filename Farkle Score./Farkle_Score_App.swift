@@ -42,6 +42,17 @@ struct Farkle_Score_App: App {
                     }
                 }
         }
+#if os(iOS) || os(macOS) || os(visionOS)
+        .commands {
+            CommandGroup(replacing: .undoRedo) {
+                Button("Undo Last Score Entry") {
+                    gameStore.undoLastEntry()
+                }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(gameStore.history.isEmpty)
+            }
+        }
+#endif
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 Task {

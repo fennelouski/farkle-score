@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>FarklePrivacyPolicyURL</key>
+	<string></string>
+	<key>FarkleSupportURL</key>
+	<string></string>
+	<key>NSCameraUsageDescription</key>
+	<string>Farkle Score uses the camera only when you choose to take a photo for a player’s avatar.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Farkle Score needs photo access when you pick an image from your library for a player’s avatar.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

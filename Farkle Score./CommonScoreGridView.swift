@@ -5,10 +5,6 @@
 
 import SwiftUI
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 struct CommonScoreGridView: View {
     let presets: [CommonScorePreset]
     var onSelect: (Int) -> Void
@@ -61,10 +57,7 @@ struct CommonScoreGridView: View {
     }
 
     private func presetHaptic() {
-#if canImport(UIKit)
-        let g = UIImpactFeedbackGenerator(style: .light)
-        g.impactOccurred()
-#endif
+        LightImpactHaptic.play()
     }
 }
 

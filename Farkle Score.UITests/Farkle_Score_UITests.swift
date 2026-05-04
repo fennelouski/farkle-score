@@ -102,4 +102,20 @@ final class Farkle_Score_UITests: XCTestCase {
             "First player row must expose a combined accessibility label including its position"
         )
     }
+
+    @MainActor
+    func testOpenSettingsShowsAppStoreSection() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let settingsButton = app.buttons["Settings"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 8), "Settings button must be tappable")
+        settingsButton.tap()
+
+        XCTAssertTrue(app.staticTexts["Settings"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["App Store"].waitForExistence(timeout: 3),
+            "Settings must include the App Store section for policy/support links"
+        )
+    }
 }

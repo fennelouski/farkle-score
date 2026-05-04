@@ -2,8 +2,9 @@
 //  CloudKitSchema.swift
 //  Farkle Score.
 //
-//  Record types and field keys. Deploy matching types in CloudKit Dashboard
-//  (Development → Production) for query indexes on HistoryEntry.timestamp.
+//  Record types and field keys. See docs/CLOUDKIT_DEPLOYMENT.md for the
+//  production checklist; deploy matching types in CloudKit Dashboard
+//  (Development → Production), including indexes on HistoryEntry.timestamp.
 //
 
 import CloudKit

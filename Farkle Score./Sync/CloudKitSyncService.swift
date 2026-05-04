@@ -57,7 +57,9 @@ actor CloudKitSyncService: CloudSyncing {
         let zoneID = try await ensureZoneExists()
         let recordID = CKRecord.ID(recordName: CloudKitSchema.rosterRecordName, zoneID: zoneID)
         let record = try await fetchOrCreateRecord(recordID: recordID, recordType: CloudKitSchema.rosterRecordType, database: db)
-        let stripped = players.map { Player(id: $0.id, name: $0.name, score: 0) }
+        let stripped = players.map {
+            Player(id: $0.id, name: $0.name, score: 0, avatarEmoji: $0.avatarEmoji, avatarPhotoFileName: nil)
+        }
         let data = try rosterEncoder.encode(stripped)
         record[CloudKitSchema.playersJSONKey] = data as CKRecordValue
         _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)

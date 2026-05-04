@@ -4,10 +4,17 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct PlayerRowView: View {
     let index: Int
     let player: Player
+    let allPlayers: [Player]
     let isActive: Bool
     let onSelect: () -> Void
 
@@ -20,9 +27,13 @@ struct PlayerRowView: View {
         AppTheme.avatarColor(index: index, contrast: contrast)
     }
 
-    private var initial: String {
-        let t = player.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? "?" : String(t.prefix(1)).uppercased()
+    private var monogramText: String {
+        PlayerMonogram.text(for: player.id, in: allPlayers)
+    }
+
+    private var duplicateEmojiHighlight: Bool {
+        guard let e = player.avatarEmoji else { return false }
+        return allPlayers.filter { $0.avatarEmoji == e }.count > 1
     }
 
     private var accessibilityRowLabel: String {
@@ -115,21 +126,96 @@ struct PlayerRowView: View {
         .accessibilityHidden(true)
     }
 
+    private var monogramPointSize: CGFloat {
+        let n = monogramText.count
+        if n <= 1 { return avatarSize * 0.42 }
+        if n == 2 { return avatarSize * 0.36 }
+        return avatarSize * 0.30
+    }
+
     private var avatar: some View {
+        Group {
+            if let fn = player.avatarPhotoFileName,
+               let data = try? AvatarImageStore.data(for: fn),
+               rowImageDataValid(data) {
+                rowPhotoAvatar(data: data)
+            } else if let em = player.avatarEmoji {
+                emojiAvatar(emoji: em)
+            } else {
+                ZStack {
+                    Circle()
+                        .fill(avatarColor.opacity(0.9))
+                        .frame(width: avatarSize, height: avatarSize)
+                    Text(monogramText)
+                        .font(.system(size: monogramPointSize, design: .rounded).bold())
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 2)
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func emojiAvatar(emoji: String) -> some View {
         ZStack {
             Circle()
                 .fill(avatarColor.opacity(0.9))
                 .frame(width: avatarSize, height: avatarSize)
-            Text(initial)
-                .font(.system(.headline, design: .rounded).bold())
-                .foregroundStyle(.white)
+            Text(emoji)
+                .font(.system(size: avatarSize * 0.55))
         }
-        .accessibilityHidden(true)
+        .overlay {
+            if duplicateEmojiHighlight {
+                Circle()
+                    .stroke(avatarColor, lineWidth: contrast == .increased ? 3.5 : 2.5)
+                    .frame(width: avatarSize + 6, height: avatarSize + 6)
+            }
+        }
+    }
+
+    private func rowImageDataValid(_ data: Data) -> Bool {
+#if canImport(UIKit)
+        UIImage(data: data) != nil
+#elseif canImport(AppKit)
+        NSImage(data: data) != nil
+#else
+        false
+#endif
+    }
+
+    @ViewBuilder
+    private func rowPhotoAvatar(data: Data) -> some View {
+#if canImport(UIKit)
+        if let ui = UIImage(data: data) {
+            Image(uiImage: ui)
+                .resizable()
+                .scaledToFill()
+                .frame(width: avatarSize, height: avatarSize)
+                .clipShape(Circle())
+        }
+#elseif canImport(AppKit)
+        if let ns = NSImage(data: data) {
+            Image(nsImage: ns)
+                .resizable()
+                .scaledToFill()
+                .frame(width: avatarSize, height: avatarSize)
+                .clipShape(Circle())
+        }
+#endif
     }
 }
 
 #Preview {
-    PlayerRowView(index: 0, player: Player(name: "Kathatherine", score: 8700), isActive: true, onSelect: {})
-        .padding()
-        .background(AppTheme.background)
+    PlayerRowView(
+        index: 0,
+        player: Player(name: "Kathatherine", score: 8700),
+        allPlayers: [Player(name: "Kathatherine", score: 8700)],
+        isActive: true,
+        onSelect: {}
+    )
+    .padding()
+    .background(AppTheme.background)
 }

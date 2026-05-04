@@ -1,0 +1,268 @@
+//
+//  CustomizePlayerAvatarSheet.swift
+//  Farkle Score.
+//
+
+import SwiftUI
+import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
+
+struct CustomizePlayerAvatarSheet: View {
+    @Binding var avatarEmoji: String?
+    @Binding var avatarPhotoFileName: String?
+
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var photoPickerItem: PhotosPickerItem?
+    @State private var showEmojiEntrySheet = false
+    @State private var emojiDraft = ""
+#if os(iOS)
+    @State private var showCameraNotice = false
+    @State private var showCameraPicker = false
+    @State private var cameraImage: UIImage?
+#endif
+
+    private static let quickPickEmojis: [String] = [
+        "🎲", "🎯", "⭐", "🏆", "🔥", "💎", "🍀", "🎪", "🦄", "🐉", "🦋", "🌙", "⚡️", "🎸", "🍕",
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(Self.quickPickEmojis, id: \.self) { em in
+                                Button {
+                                    selectEmoji(em)
+                                } label: {
+                                    Text(em)
+                                        .font(.system(size: 36))
+                                        .frame(width: 52, height: 52)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .fill(AppTheme.cardFill)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 10)
+                                                        .stroke(
+                                                            avatarEmoji == em
+                                                                ? AppTheme.accentYellow(contrast)
+                                                                : AppTheme.stroke(contrast),
+                                                            lineWidth: avatarEmoji == em ? 2 : 1
+                                                        )
+                                                )
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Emoji \(em)")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("Quick picks")
+                }
+
+                Section {
+                    Button {
+                        showEmojiEntrySheet = true
+                    } label: {
+                        Label("Choose any emoji…", systemImage: "face.smiling")
+                    }
+
+                    PhotosPicker(
+                        selection: $photoPickerItem,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Label("Choose from photo library…", systemImage: "photo.on.rectangle.angled")
+                    }
+                    .onChange(of: photoPickerItem) { _, item in
+                        Task { await loadPhoto(from: item) }
+                    }
+
+#if os(iOS)
+                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                        Button {
+                            showCameraNotice = true
+                        } label: {
+                            Label("Take a photo…", systemImage: "camera.fill")
+                        }
+                    }
+#endif
+                } header: {
+                    Text("More options")
+                } footer: {
+                    Text("Photo library and camera are only used when you choose them here.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.muted(contrast))
+                }
+
+                Section {
+                    Button("Use initials instead", role: .destructive) {
+                        resetToMonogram()
+                    }
+                }
+            }
+            .navigationTitle("Customize avatar")
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .sheet(isPresented: $showEmojiEntrySheet) {
+            emojiEntrySheet
+        }
+#if os(iOS)
+        .alert("Open camera?", isPresented: $showCameraNotice) {
+            Button("Cancel", role: .cancel) {}
+            Button("Continue") {
+                showCameraPicker = true
+            }
+        } message: {
+            Text("The camera will open so you can take a picture for this player’s avatar.")
+        }
+        .fullScreenCover(isPresented: $showCameraPicker) {
+            CameraImagePicker(pickedImage: $cameraImage)
+                .ignoresSafeArea()
+        }
+        .onChange(of: cameraImage) { _, img in
+            guard let img else { return }
+            Task {
+                await saveCameraImage(img)
+                await MainActor.run { cameraImage = nil }
+            }
+        }
+#endif
+    }
+
+    private var emojiEntrySheet: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Tap the smiley key on your keyboard", text: $emojiDraft)
+                        .font(.title)
+#if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+#endif
+                } footer: {
+                    Text("We’ll use the first emoji you enter.")
+                }
+            }
+            .navigationTitle("Any emoji")
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        emojiDraft = ""
+                        showEmojiEntrySheet = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Use") {
+                        if let normalized = Player.normalizedEmoji(emojiDraft) {
+                            selectEmoji(normalized)
+                        }
+                        emojiDraft = ""
+                        showEmojiEntrySheet = false
+                    }
+                    .disabled(Player.normalizedEmoji(emojiDraft) == nil)
+                }
+            }
+        }
+#if os(iOS)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+#endif
+    }
+
+    private func selectEmoji(_ em: String) {
+        if let old = avatarPhotoFileName {
+            AvatarImageStore.deleteFile(named: old)
+            avatarPhotoFileName = nil
+        }
+        avatarEmoji = em
+    }
+
+    private func resetToMonogram() {
+        if let old = avatarPhotoFileName {
+            AvatarImageStore.deleteFile(named: old)
+        }
+        avatarPhotoFileName = nil
+        avatarEmoji = nil
+    }
+
+    private func loadPhoto(from item: PhotosPickerItem?) async {
+        guard let item else { return }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { return }
+            let out = Self.jpegPayload(from: data) ?? data
+            await MainActor.run {
+                do {
+                    if let old = avatarPhotoFileName {
+                        AvatarImageStore.deleteFile(named: old)
+                    }
+                    let name = try AvatarImageStore.saveImageData(out)
+                    avatarEmoji = nil
+                    avatarPhotoFileName = name
+                    photoPickerItem = nil
+                } catch {
+                    return
+                }
+            }
+        } catch {
+            return
+        }
+    }
+
+    nonisolated private static func jpegPayload(from data: Data) -> Data? {
+#if canImport(UIKit)
+        if let ui = UIImage(data: data) {
+            return ui.jpegData(compressionQuality: 0.85)
+        }
+#endif
+#if canImport(AppKit)
+        if let ns = NSImage(data: data),
+           let tiff = ns.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff) {
+            return rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+        }
+#endif
+        return nil
+    }
+
+#if os(iOS)
+    private func saveCameraImage(_ image: UIImage) async {
+        guard let data = image.jpegData(compressionQuality: 0.85) else {
+            await MainActor.run { showCameraPicker = false }
+            return
+        }
+        await MainActor.run {
+            do {
+                if let old = avatarPhotoFileName {
+                    AvatarImageStore.deleteFile(named: old)
+                }
+                let name = try AvatarImageStore.saveImageData(data)
+                avatarEmoji = nil
+                avatarPhotoFileName = name
+                showCameraPicker = false
+            } catch {
+                showCameraPicker = false
+            }
+        }
+    }
+#endif
+}

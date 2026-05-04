@@ -222,6 +222,9 @@ struct MainPanelView: View {
                 }
             }
         }
+#if os(iOS)
+        .farkleSheetChrome(detents: [.large])
+#endif
     }
 
     private func announce(_ message: String) {

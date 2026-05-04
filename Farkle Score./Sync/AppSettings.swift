@@ -17,6 +17,8 @@ enum AppSettings {
         nonisolated static let activeRuleSetId = "farkle.activeRuleSetId"
         /// Whether the score-entry dice preview disclosure is expanded.
         nonisolated static let showRollPreview = "farkle.showRollPreview"
+        /// Light impact haptics on keypad, presets, and dice preview (default on when unset).
+        nonisolated static let hapticsEnabled = "farkle.hapticsEnabled"
     }
 
     /// UserDefaults key for `@AppStorage` — must match `Key.activeRuleSetId`.
@@ -24,6 +26,9 @@ enum AppSettings {
 
     /// UserDefaults key for `@AppStorage` — must match `Key.showRollPreview`.
     nonisolated static let showRollPreviewStorageKey = Key.showRollPreview
+
+    /// UserDefaults key for `@AppStorage` — must match `Key.hapticsEnabled`.
+    nonisolated static let hapticsEnabledStorageKey = Key.hapticsEnabled
 
     /// When true, full `GameStoreState` is mirrored to CloudKit for resume on another device.
     /// Selected bundled ruleset controlling keypad presets and `FarkleScoringEngine` tables.
@@ -43,6 +48,15 @@ enum AppSettings {
     nonisolated static var showRollPreview: Bool {
         get { defaults.bool(forKey: Key.showRollPreview) }
         set { defaults.set(newValue, forKey: Key.showRollPreview) }
+    }
+
+    /// When false, score-entry light impacts are skipped. Unset key defaults to `true`.
+    nonisolated static var hapticsEnabled: Bool {
+        get {
+            if defaults.object(forKey: Key.hapticsEnabled) == nil { return true }
+            return defaults.bool(forKey: Key.hapticsEnabled)
+        }
+        set { defaults.set(newValue, forKey: Key.hapticsEnabled) }
     }
 
     nonisolated static var syncCurrentSession: Bool {

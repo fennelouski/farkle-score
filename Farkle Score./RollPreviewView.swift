@@ -177,10 +177,7 @@ struct RollPreviewView: View {
     }
 
     private func previewHaptic() {
-#if canImport(UIKit)
-        let g = UIImpactFeedbackGenerator(style: .light)
-        g.impactOccurred()
-#endif
+        LightImpactHaptic.play()
     }
 }
 

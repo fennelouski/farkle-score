@@ -53,23 +53,27 @@ struct GameStoreState: Codable, Equatable, Sendable {
 
 extension Player: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, name, score
+        case id, name, score, avatarEmoji, avatarPhotoFileName
     }
 
-    public init(from decoder: Decoder) throws {
+    public nonisolated init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             id: try c.decode(UUID.self, forKey: .id),
             name: try c.decode(String.self, forKey: .name),
-            score: try c.decode(Int.self, forKey: .score)
+            score: try c.decode(Int.self, forKey: .score),
+            avatarEmoji: try c.decodeIfPresent(String.self, forKey: .avatarEmoji).flatMap { Player.normalizedEmoji($0) },
+            avatarPhotoFileName: try c.decodeIfPresent(String.self, forKey: .avatarPhotoFileName)
         )
     }
 
-    public func encode(to encoder: Encoder) throws {
+    public nonisolated func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id, forKey: .id)
         try c.encode(name, forKey: .name)
         try c.encode(score, forKey: .score)
+        try c.encodeIfPresent(avatarEmoji, forKey: .avatarEmoji)
+        try c.encodeIfPresent(avatarPhotoFileName, forKey: .avatarPhotoFileName)
     }
 }
 

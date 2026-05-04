@@ -62,9 +62,6 @@ struct RulesLibraryView: View {
             }
             .tint(AppTheme.accentBlue(contrast))
         }
-#if os(iOS)
-        .presentationDetents([.large])
-#endif
     }
 
     private func ruleRow(_ meta: RuleSetMetadata) -> some View {

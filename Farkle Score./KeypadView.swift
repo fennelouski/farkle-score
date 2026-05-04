@@ -5,10 +5,6 @@
 
 import SwiftUI
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 struct KeypadView: View {
     var onDigit: (String) -> Void
     var onDoubleZero: () -> Void
@@ -108,10 +104,7 @@ struct KeypadView: View {
     }
 
     private func keypadHaptic() {
-#if canImport(UIKit)
-        let g = UIImpactFeedbackGenerator(style: .light)
-        g.impactOccurred()
-#endif
+        LightImpactHaptic.play()
     }
 }
 

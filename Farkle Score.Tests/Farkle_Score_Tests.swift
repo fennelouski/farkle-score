@@ -93,6 +93,17 @@ struct GameStoreTests {
         #expect(merged[0].score == 42)
     }
 
+    @Test func rosterMergePreservesLocalPhotoAndTakesCloudEmoji() {
+        let id = UUID()
+        let cloud = [Player(id: id, name: "Pat", score: 0, avatarEmoji: "🎲")]
+        let local = [Player(id: id, name: "Old", score: 10, avatarEmoji: nil, avatarPhotoFileName: "abc.jpg")]
+        let merged = RosterSeeding.mergedPlayers(cloud: cloud, local: local)
+        #expect(merged[0].name == "Pat")
+        #expect(merged[0].score == 10)
+        #expect(merged[0].avatarEmoji == "🎲")
+        #expect(merged[0].avatarPhotoFileName == "abc.jpg")
+    }
+
     @Test func autoAdvanceCyclesPlayer() {
         let store = GameStore(
             players: [Player(name: "A"), Player(name: "B")],
@@ -411,6 +422,72 @@ struct PersistenceTests {
     }
 }
 
+// MARK: - Player monogram & avatar model
+
+struct PlayerMonogramTests {
+
+    @Test func distinctFirstInitialsStaySingleLetter() {
+        let a = Player(name: "Alice")
+        let b = Player(name: "Bob")
+        let c = Player(name: "Chris")
+        let roster = [a, b, c]
+        #expect(PlayerMonogram.text(for: a.id, in: roster) == "A")
+        #expect(PlayerMonogram.text(for: b.id, in: roster) == "B")
+        #expect(PlayerMonogram.text(for: c.id, in: roster) == "C")
+    }
+
+    @Test func collisionUsesTwoLetterPrefix() {
+        let alice = Player(name: "Alice")
+        let aaron = Player(name: "Aaron")
+        let roster = [alice, aaron]
+        let ma = PlayerMonogram.text(for: alice.id, in: roster)
+        let mb = PlayerMonogram.text(for: aaron.id, in: roster)
+        #expect(ma != mb)
+        #expect(ma == "AL")
+        #expect(mb == "AA")
+    }
+
+    @Test func multiWordNamesUseInitialsWhenColliding() {
+        let p1 = Player(name: "Anna Smith")
+        let p2 = Player(name: "Anna Jones")
+        let roster = [p1, p2]
+        #expect(PlayerMonogram.text(for: p1.id, in: roster) == "AS")
+        #expect(PlayerMonogram.text(for: p2.id, in: roster) == "AJ")
+    }
+
+    @Test func draftNamePreviewMatchesFutureMonogram() {
+        let existing = [Player(name: "Bob")]
+        let preview = PlayerMonogram.textForDraftName("Ben", existingPlayers: existing)
+        let ben = Player(name: "Ben")
+        let roster = existing + [ben]
+        #expect(preview == PlayerMonogram.text(for: ben.id, in: roster))
+    }
+
+    @Test func playerJSONRoundTripWithAvatarFields() throws {
+        let original = Player(name: "Sam", score: 3, avatarEmoji: "🎯", avatarPhotoFileName: "snap.jpg")
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(Player.self, from: data)
+        #expect(decoded == original)
+    }
+
+    @Test func playerDecodesOmittingOptionalAvatarKeys() throws {
+        let id = UUID()
+        let json = """
+        {"id":"\(id.uuidString)","name":"Lee","score":0}
+        """
+        let p = try JSONDecoder().decode(Player.self, from: Data(json.utf8))
+        #expect(p.id == id)
+        #expect(p.name == "Lee")
+        #expect(p.avatarEmoji == nil)
+        #expect(p.avatarPhotoFileName == nil)
+    }
+
+    @Test func normalizedEmojiExtractsFirstEmoji() {
+        #expect(Player.normalizedEmoji("hi🎲there") == "🎲")
+        #expect(Player.normalizedEmoji("nope") == nil)
+    }
+}
+
 // MARK: - Rules-aware scoring
 
 struct FarkleScoringEngineTests {
@@ -490,5 +567,33 @@ struct FarkleScoringEngineTests {
         let rules = ScoringProfile.profile(for: "farkle-cardgames-io")
         let c = FarkleScoringEngine.makeCounts(from: straightRun)
         #expect(FarkleScoringEngine.isHotDice(counts: c, rules: rules))
+    }
+}
+
+// MARK: - App settings
+
+struct AppSettingsTests {
+
+    @Test func hapticsEnabledUnsetDefaultsTrueAndPersistsFalse() {
+        let key = AppSettings.hapticsEnabledStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.hapticsEnabled == true)
+        AppSettings.hapticsEnabled = false
+        #expect(AppSettings.hapticsEnabled == false)
+    }
+
+    @Test func defaultRulesetMetadataHasSubtitleForSettingsPreview() {
+        let id = ScoringProfile.defaultRulesetId
+        let subtitle = RulesLibrary.metadata(id: id)?.subtitle
+        #expect(subtitle != nil)
+        #expect(!(subtitle?.isEmpty ?? true))
     }
 }

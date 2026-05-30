@@ -31,6 +31,11 @@ enum CloudKitSchema: Sendable {
     nonisolated static let sessionPayloadKey = "payload"
     nonisolated static let sessionModifiedAtKey = "modifiedAt"
 
+    nonisolated static let appPreferencesRecordType = "AppPreferences"
+    nonisolated static let appPreferencesRecordName = "preferences"
+    nonisolated static let appPreferencesPayloadKey = "payload"
+    nonisolated static let appPreferencesModifiedAtKey = "modifiedAt"
+
     nonisolated static let zoneSubscriptionID = "FarkleSync-zone-subscription"
 
     nonisolated static var containerIdentifier: String {

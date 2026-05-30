@@ -5,6 +5,7 @@
 
 import SwiftUI
 import PhotosUI
+import WebImagePicker
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -20,6 +21,7 @@ struct CustomizePlayerAvatarSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var photoPickerItem: PhotosPickerItem?
+    @State private var showWebImagePicker = false
     @State private var showEmojiEntrySheet = false
     @State private var emojiDraft = ""
 #if os(iOS)
@@ -87,6 +89,12 @@ struct CustomizePlayerAvatarSheet: View {
                         Task { await loadPhoto(from: item) }
                     }
 
+                    Button {
+                        showWebImagePicker = true
+                    } label: {
+                        Label("Choose from website…", systemImage: "globe")
+                    }
+
 #if os(iOS)
                     if UIImagePickerController.isSourceTypeAvailable(.camera) {
                         Button {
@@ -99,7 +107,7 @@ struct CustomizePlayerAvatarSheet: View {
                 } header: {
                     Text("More options")
                 } footer: {
-                    Text("Photo library and camera are only used when you choose them here.")
+                    Text("Photo library, camera, and website picker are only used when you choose them here.")
                         .font(.caption)
                         .foregroundStyle(AppTheme.muted(contrast))
                 }
@@ -123,6 +131,10 @@ struct CustomizePlayerAvatarSheet: View {
         .sheet(isPresented: $showEmojiEntrySheet) {
             emojiEntrySheet
         }
+        .webImagePicker(isPresented: $showWebImagePicker) { selections in
+            guard let selection = selections.first else { return }
+            saveWebImageSelection(selection)
+        }
 #if os(iOS)
         .alert("Open camera?", isPresented: $showCameraNotice) {
             Button("Cancel", role: .cancel) {}
@@ -134,7 +146,6 @@ struct CustomizePlayerAvatarSheet: View {
         }
         .fullScreenCover(isPresented: $showCameraPicker) {
             CameraImagePicker(pickedImage: $cameraImage)
-                .ignoresSafeArea()
         }
         .onChange(of: cameraImage) { _, img in
             guard let img else { return }
@@ -203,6 +214,20 @@ struct CustomizePlayerAvatarSheet: View {
         }
         avatarPhotoFileName = nil
         avatarEmoji = nil
+    }
+
+    private func saveWebImageSelection(_ selection: WebImageSelection) {
+        let payload = Self.jpegPayload(from: selection.data) ?? selection.data
+        do {
+            if let old = avatarPhotoFileName {
+                AvatarImageStore.deleteFile(named: old)
+            }
+            let name = try AvatarImageStore.saveImageData(payload)
+            avatarEmoji = nil
+            avatarPhotoFileName = name
+        } catch {
+            return
+        }
     }
 
     private func loadPhoto(from item: PhotosPickerItem?) async {

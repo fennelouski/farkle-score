@@ -24,7 +24,7 @@ struct GameRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)
-        .background(AppTheme.background)
+        .farkleScreenBackground()
     }
 
     private var regularLayout: some View {
@@ -39,6 +39,8 @@ struct GameRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(20)
         }
+        .safeAreaPadding(.horizontal, 12)
+        .safeAreaPadding(.vertical, 8)
     }
 
     private var compactLayout: some View {
@@ -47,9 +49,9 @@ struct GameRootView: View {
                 PlayerListView()
                 MainPanelView()
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
         }
+        .safeAreaPadding(.horizontal, 12)
+        .safeAreaPadding(.vertical, 8)
     }
 }
 

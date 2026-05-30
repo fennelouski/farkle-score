@@ -16,6 +16,8 @@ protocol CloudSyncing: Sendable {
     func saveHistoryEntry(_ entry: ScoreEntry) async throws
     func fetchCurrentSession() async throws -> (data: Data, modified: Date)?
     func saveCurrentSession(data: Data, modified: Date) async throws
+    func fetchAppPreferences() async throws -> (data: Data, modified: Date)?
+    func saveAppPreferences(data: Data, modified: Date) async throws
     func registerZoneSubscriptionIfNeeded() async throws
 }
 

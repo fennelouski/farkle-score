@@ -54,7 +54,7 @@ struct RulesLibraryView: View {
                 RulesDetailView(metadata: meta)
             }
             .scrollContentBackground(.hidden)
-            .background(AppTheme.background)
+            .farkleScreenBackground()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }

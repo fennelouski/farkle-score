@@ -14,6 +14,8 @@ import UIKit
 @MainActor
 enum CloudSyncController {
     private static let cloud = CloudKitSyncService()
+    private static let scoringPrefsEncoder = JSONEncoder()
+    private static let scoringPrefsDecoder = JSONDecoder()
 
     static func bootstrapAfterLaunch(store: GameStore, persistence: GameStorePersistence) async {
         guard await cloud.fetchAccountStatus() == .available else { return }
@@ -22,6 +24,9 @@ enum CloudSyncController {
 #if canImport(UIKit)
             UIApplication.shared.registerForRemoteNotifications()
 #endif
+            do {
+                try await mergeAppPreferencesFromCloud()
+            } catch {}
             if AppSettings.syncCurrentSession {
                 if try await applyCloudSessionIfNewer(store: store, persistence: persistence) {
                     return
@@ -37,7 +42,20 @@ enum CloudSyncController {
     static func mergeFromRemoteNotification(store: GameStore, persistence: GameStorePersistence) async {
         guard await cloud.fetchAccountStatus() == .available else { return }
         do {
+            do {
+                try await mergeAppPreferencesFromCloud()
+            } catch {}
             try await mergeCloudRosterAndHistoryIntoStore(store: store, persistence: persistence)
+        } catch {
+            return
+        }
+    }
+
+    /// Push scoring preferences after local edits (e.g. Settings).
+    static func syncScoringPreferencesToCloudIfNeeded() async {
+        guard await cloud.fetchAccountStatus() == .available else { return }
+        do {
+            try await pushAppPreferencesToCloud()
         } catch {
             return
         }
@@ -74,12 +92,31 @@ enum CloudSyncController {
                 }
             }
             AppSettings.lastPersistedHistoryCount = store.history.count
+
+            do {
+                try await pushAppPreferencesToCloud()
+            } catch {}
         } catch {
             return
         }
     }
 
     // MARK: - Private
+
+    private static func mergeAppPreferencesFromCloud() async throws {
+        guard let (data, cloudModified) = try await cloud.fetchAppPreferences() else { return }
+        let localModified = AppSettings.lastScoringPreferencesWrite ?? .distantPast
+        guard cloudModified > localModified else { return }
+        let payload = try scoringPrefsDecoder.decode(ScoringPreferencesPayload.self, from: data)
+        AppSettings.applyScoringPreferencesFromICloud(payload, modifiedAt: cloudModified)
+    }
+
+    private static func pushAppPreferencesToCloud() async throws {
+        let payload = AppSettings.loadScoringPreferences()
+        let data = try scoringPrefsEncoder.encode(payload)
+        let modified = AppSettings.lastScoringPreferencesWrite ?? Date()
+        try await cloud.saveAppPreferences(data: data, modified: modified)
+    }
 
     private static func applyCloudSessionIfNewer(store: GameStore, persistence: GameStorePersistence) async throws -> Bool {
         guard let (data, cloudModified) = try await cloud.fetchCurrentSession() else { return false }

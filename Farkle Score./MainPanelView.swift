@@ -12,6 +12,7 @@ import UIKit
 struct MainPanelView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -29,16 +30,39 @@ struct MainPanelView: View {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
     }
 
+    /// iPad landscape: regular width but short height — scroll so header and keypad stay reachable.
+    private var needsVerticalScroll: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .compact
+    }
+
     var body: some View {
+        Group {
+            if needsVerticalScroll {
+                ScrollView {
+                    mainColumn
+                        .padding(.bottom, 12)
+                }
+            } else {
+                mainColumn
+            }
+        }
+        .sheet(isPresented: $showFullHistory) {
+            historySheet
+        }
+        .onChange(of: store.history.isEmpty) { _, isEmpty in
+            if isEmpty { showFullHistory = false }
+        }
+    }
+
+    private var mainColumn: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
 
             ScoreInputView()
 
-            recentSection
-        }
-        .sheet(isPresented: $showFullHistory) {
-            historySheet
+            if !store.history.isEmpty {
+                recentSection
+            }
         }
     }
 

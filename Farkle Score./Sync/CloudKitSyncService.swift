@@ -130,6 +130,35 @@ actor CloudKitSyncService: CloudSyncing {
         _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
     }
 
+    func fetchAppPreferences() async throws -> (data: Data, modified: Date)? {
+        let db = container.privateCloudDatabase
+        let zoneID = try await ensureZoneExists()
+        let recordID = CKRecord.ID(recordName: CloudKitSchema.appPreferencesRecordName, zoneID: zoneID)
+        let record: CKRecord
+        do {
+            record = try await db.record(for: recordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            return nil
+        }
+        guard let data = record[CloudKitSchema.appPreferencesPayloadKey] as? Data else { return nil }
+        let modified = record[CloudKitSchema.appPreferencesModifiedAtKey] as? Date ?? record.modificationDate ?? record.creationDate ?? .now
+        return (data, modified)
+    }
+
+    func saveAppPreferences(data: Data, modified: Date) async throws {
+        let db = container.privateCloudDatabase
+        let zoneID = try await ensureZoneExists()
+        let recordID = CKRecord.ID(recordName: CloudKitSchema.appPreferencesRecordName, zoneID: zoneID)
+        let record = try await fetchOrCreateRecord(
+            recordID: recordID,
+            recordType: CloudKitSchema.appPreferencesRecordType,
+            database: db
+        )
+        record[CloudKitSchema.appPreferencesPayloadKey] = data as CKRecordValue
+        record[CloudKitSchema.appPreferencesModifiedAtKey] = modified as CKRecordValue
+        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+    }
+
     func registerZoneSubscriptionIfNeeded() async throws {
         let zoneID = try await ensureZoneExists()
         try await registerZoneSubscription(zoneID: zoneID)

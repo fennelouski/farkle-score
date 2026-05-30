@@ -29,10 +29,9 @@ struct RulesDetailView: View {
                 ProgressView()
                     .tint(AppTheme.accentBlue(contrast))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(AppTheme.background)
             }
         }
-        .background(AppTheme.background)
+        .farkleScreenBackground()
         .navigationTitle(metadata.title)
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -99,10 +98,10 @@ struct RulesDetailView: View {
                         )
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
             }
-            .background(AppTheme.background)
+            .safeAreaPadding(.horizontal, 16)
+            .safeAreaPadding(.vertical, 12)
+            .farkleScreenBackground()
         }
     }
 }

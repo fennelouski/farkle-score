@@ -5,25 +5,124 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 enum AppTheme {
+#if canImport(UIKit)
+    private static func dynamicUIColor(
+        light: UIColor,
+        dark: UIColor,
+        lightHighContrast: UIColor,
+        darkHighContrast: UIColor
+    ) -> UIColor {
+        UIColor { tc in
+            switch (tc.userInterfaceStyle == .dark, tc.accessibilityContrast == .high) {
+            case (true, true): return darkHighContrast
+            case (true, false): return dark
+            case (false, true): return lightHighContrast
+            case (false, false): return light
+            }
+        }
+    }
+
+    private static func color(
+        light: UIColor,
+        dark: UIColor,
+        lightHighContrast: UIColor,
+        darkHighContrast: UIColor
+    ) -> Color {
+        Color(uiColor: dynamicUIColor(
+            light: light,
+            dark: dark,
+            lightHighContrast: lightHighContrast,
+            darkHighContrast: darkHighContrast
+        ))
+    }
+
+    /// Window / full-screen chrome.
+    static let background = color(
+        light: UIColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1),
+        dark: UIColor(red: 0.07, green: 0.09, blue: 0.12, alpha: 1),
+        lightHighContrast: UIColor(red: 1, green: 1, blue: 1, alpha: 1),
+        darkHighContrast: UIColor(red: 0, green: 0, blue: 0, alpha: 1)
+    )
+
+    static let cardFill = color(
+        light: UIColor(red: 0.91, green: 0.93, blue: 0.96, alpha: 1),
+        dark: UIColor(red: 0.10, green: 0.12, blue: 0.16, alpha: 1),
+        lightHighContrast: UIColor(red: 0.96, green: 0.97, blue: 1, alpha: 1),
+        darkHighContrast: UIColor(red: 0.12, green: 0.14, blue: 0.18, alpha: 1)
+    )
+
+    static let keypadButtonFill = color(
+        light: UIColor(red: 0.86, green: 0.89, blue: 0.94, alpha: 1),
+        dark: UIColor(red: 0.14, green: 0.16, blue: 0.20, alpha: 1),
+        lightHighContrast: UIColor(red: 0.90, green: 0.93, blue: 1, alpha: 1),
+        darkHighContrast: UIColor(red: 0.16, green: 0.18, blue: 0.22, alpha: 1)
+    )
+
+    static let displayInset = color(
+        light: UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1),
+        dark: UIColor(white: 0, alpha: 0.45),
+        lightHighContrast: UIColor(red: 0.75, green: 0.78, blue: 0.85, alpha: 1),
+        darkHighContrast: UIColor(white: 0, alpha: 0.55)
+    )
+
+    static let primaryText = color(
+        light: UIColor(red: 0.08, green: 0.10, blue: 0.14, alpha: 1),
+        dark: UIColor(white: 1, alpha: 1),
+        lightHighContrast: UIColor(white: 0, alpha: 1),
+        darkHighContrast: UIColor(white: 1, alpha: 1)
+    )
+
+    private static let mutedLight = UIColor(red: 0.35, green: 0.38, blue: 0.44, alpha: 1)
+    private static let mutedDark = UIColor(white: 1, alpha: 0.72)
+    private static let mutedLightHC = UIColor(red: 0.12, green: 0.14, blue: 0.18, alpha: 1)
+    private static let mutedDarkHC = UIColor(white: 1, alpha: 0.92)
+
+    static let cardStroke = color(
+        light: UIColor(white: 0, alpha: 0.12),
+        dark: UIColor(white: 1, alpha: 0.18),
+        lightHighContrast: UIColor(white: 0, alpha: 0.28),
+        darkHighContrast: UIColor(white: 1, alpha: 0.32)
+    )
+
+    static let accentYellow = color(
+        light: UIColor(red: 0.72, green: 0.52, blue: 0.05, alpha: 1),
+        dark: UIColor(red: 1.0, green: 0.85, blue: 0.2, alpha: 1),
+        lightHighContrast: UIColor(red: 0.45, green: 0.32, blue: 0, alpha: 1),
+        darkHighContrast: UIColor(red: 1.0, green: 0.92, blue: 0.45, alpha: 1)
+    )
+
+    static let accentBlue = color(
+        light: UIColor(red: 0.15, green: 0.38, blue: 0.85, alpha: 1),
+        dark: UIColor(red: 0.45, green: 0.65, blue: 1.0, alpha: 1),
+        lightHighContrast: UIColor(red: 0, green: 0.22, blue: 0.75, alpha: 1),
+        darkHighContrast: UIColor(red: 0.65, green: 0.78, blue: 1.0, alpha: 1)
+    )
+
+    static let primaryGreen = color(
+        light: UIColor(red: 0.05, green: 0.55, blue: 0.32, alpha: 1),
+        dark: UIColor(red: 0.2, green: 0.78, blue: 0.45, alpha: 1),
+        lightHighContrast: UIColor(red: 0, green: 0.42, blue: 0.22, alpha: 1),
+        darkHighContrast: UIColor(red: 0.35, green: 0.88, blue: 0.55, alpha: 1)
+    )
+
+#else
+
     static let background = Color(red: 0.07, green: 0.09, blue: 0.12)
     static let cardFill = Color(red: 0.10, green: 0.12, blue: 0.16)
     static let cardStroke = Color.white.opacity(0.18)
-    static let cardStrokeHighContrast = Color.white.opacity(0.32)
     static let keypadButtonFill = Color(red: 0.14, green: 0.16, blue: 0.20)
     static let displayInset = Color.black.opacity(0.45)
-
     static let accentYellow = Color(red: 1.0, green: 0.85, blue: 0.2)
-    static let accentYellowHighContrast = Color(red: 1.0, green: 0.92, blue: 0.45)
     static let accentBlue = Color(red: 0.45, green: 0.65, blue: 1.0)
-    static let accentBlueHighContrast = Color(red: 0.65, green: 0.78, blue: 1.0)
     static let primaryGreen = Color(red: 0.2, green: 0.78, blue: 0.45)
-    static let primaryGreenHighContrast = Color(red: 0.35, green: 0.88, blue: 0.55)
-
-    /// Bumped from 0.45 -> 0.72 to clear WCAG AA on the dark cards (≈7:1 on cardFill).
-    static let mutedLabel = Color.white.opacity(0.72)
-    static let mutedLabelHighContrast = Color.white.opacity(0.92)
     static let primaryText = Color.white
+
+#endif
 
     static let cornerRadius: CGFloat = 12
     static let cardCornerRadius: CGFloat = 14
@@ -64,23 +163,48 @@ enum AppTheme {
     }
 
     static func muted(_ contrast: ColorSchemeContrast) -> Color {
-        contrast == .increased ? mutedLabelHighContrast : mutedLabel
+#if canImport(UIKit)
+        Color(uiColor: dynamicUIColor(
+            light: mutedLight,
+            dark: mutedDark,
+            lightHighContrast: mutedLightHC,
+            darkHighContrast: mutedDarkHC
+        ))
+#else
+        contrast == .increased ? Color.white.opacity(0.92) : Color.white.opacity(0.72)
+#endif
     }
 
     static func stroke(_ contrast: ColorSchemeContrast) -> Color {
-        contrast == .increased ? cardStrokeHighContrast : cardStroke
+#if canImport(UIKit)
+        cardStroke
+#else
+        contrast == .increased ? Color.white.opacity(0.32) : Color.white.opacity(0.18)
+#endif
     }
 
     static func accentBlue(_ contrast: ColorSchemeContrast) -> Color {
-        contrast == .increased ? accentBlueHighContrast : accentBlue
+#if canImport(UIKit)
+        accentBlue
+#else
+        contrast == .increased ? Color(red: 0.65, green: 0.78, blue: 1.0) : Color(red: 0.45, green: 0.65, blue: 1.0)
+#endif
     }
 
     static func accentYellow(_ contrast: ColorSchemeContrast) -> Color {
-        contrast == .increased ? accentYellowHighContrast : accentYellow
+#if canImport(UIKit)
+        accentYellow
+#else
+        contrast == .increased ? Color(red: 1.0, green: 0.92, blue: 0.45) : Color(red: 1.0, green: 0.85, blue: 0.2)
+#endif
     }
 
     static func primaryGreen(_ contrast: ColorSchemeContrast) -> Color {
-        contrast == .increased ? primaryGreenHighContrast : primaryGreen
+#if canImport(UIKit)
+        primaryGreen
+#else
+        contrast == .increased ? Color(red: 0.35, green: 0.88, blue: 0.55) : Color(red: 0.2, green: 0.78, blue: 0.45)
+#endif
     }
 
     static let scoreNumberFormatter: NumberFormatter = {

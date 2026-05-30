@@ -8,6 +8,9 @@ import SwiftUI
 struct PlayerListView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
     @State private var showAddPlayerSheet = false
     @State private var showSettings = false
     @State private var showRulesLibrary = false
@@ -17,46 +20,20 @@ struct PlayerListView: View {
     @State private var draftAvatarPhotoFileName: String?
     @State private var draftPlayerPreviewId = UUID()
 
+    private var needsVerticalScroll: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .compact
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-                .padding(.bottom, 16)
-
-            Text("PLAYERS (6 MAX)")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.muted(contrast))
-                .padding(.bottom, 8)
-                .accessibilityLabel("Players, 6 maximum")
-                .accessibilityAddTraits(.isHeader)
-
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
-                        PlayerRowView(
-                            index: index,
-                            player: player,
-                            allPlayers: store.players,
-                            isActive: index == store.activePlayerIndex,
-                            onSelect: { store.selectPlayer(at: index) }
-                        )
-                    }
+        Group {
+            if needsVerticalScroll {
+                ScrollView {
+                    sidebarColumn
+                        .padding(.bottom, 8)
                 }
+            } else {
+                sidebarColumn
             }
-
-            Spacer(minLength: 12)
-
-            Toggle("Auto-advance turn", isOn: Binding(
-                get: { store.autoAdvanceAfterScore },
-                set: { store.autoAdvanceAfterScore = $0 }
-            ))
-                .font(.caption.weight(.medium))
-                .foregroundStyle(AppTheme.muted(contrast))
-                .tint(AppTheme.accentBlue(contrast))
-                .padding(.vertical, 8)
-                .accessibilityHint("When on, the next player is selected automatically after each score is added")
-
-            addPlayerButton
-            newGameButton
         }
         .padding(16)
         .sheet(isPresented: $showAddPlayerSheet) {
@@ -76,6 +53,71 @@ struct PlayerListView: View {
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
                 .farkleSheetChrome(detents: [.large])
+        }
+    }
+
+    private var sidebarColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.bottom, 16)
+
+            Text("PLAYERS (6 MAX)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.muted(contrast))
+                .padding(.bottom, 8)
+                .accessibilityLabel("Players, 6 maximum")
+                .accessibilityAddTraits(.isHeader)
+
+            Group {
+                if needsVerticalScroll {
+                    VStack(spacing: 8) {
+                        ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
+                            PlayerRowView(
+                                index: index,
+                                player: player,
+                                allPlayers: store.players,
+                                isActive: index == store.activePlayerIndex,
+                                onSelect: { store.selectPlayer(at: index) }
+                            )
+                        }
+                    }
+                } else {
+                    ScrollView {
+                        VStack(spacing: 8) {
+                            ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
+                                PlayerRowView(
+                                    index: index,
+                                    player: player,
+                                    allPlayers: store.players,
+                                    isActive: index == store.activePlayerIndex,
+                                    onSelect: { store.selectPlayer(at: index) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !needsVerticalScroll {
+                Spacer(minLength: 12)
+            } else {
+                Color.clear.frame(height: 8)
+            }
+
+            if showAutoAdvanceTurnOption {
+                Toggle("Auto-advance turn", isOn: Binding(
+                    get: { store.autoAdvanceAfterScore },
+                    set: { store.autoAdvanceAfterScore = $0 }
+                ))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(AppTheme.muted(contrast))
+                    .tint(AppTheme.accentBlue(contrast))
+                    .padding(.vertical, 8)
+                    .accessibilityHint("When on, the next player is selected automatically after each score is added")
+            }
+
+            addPlayerButton
+            newGameButton
         }
     }
 

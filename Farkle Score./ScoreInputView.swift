@@ -11,8 +11,8 @@ import UIKit
 
 struct ScoreInputView: View {
     @Environment(GameStore.self) private var store
-    @AppStorage(AppSettings.activeRuleSetIdStorageKey) private var activeRuleSetId: String = ScoringProfile.defaultRulesetId
-    @AppStorage(AppSettings.showRollPreviewStorageKey) private var showRollPreview: Bool = false
+    @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
+    @AppStorage(AppSettings.showDicePreviewStorageKey) private var showDicePreview = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
@@ -40,25 +40,24 @@ struct ScoreInputView: View {
                 }
             }
 
-            dicePreviewDisclosure
+            if showDicePreview {
+                dicePreviewSection
+            }
         }
     }
 
-    private var dicePreviewDisclosure: some View {
+    private var dicePreviewSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            DisclosureGroup(isExpanded: $showRollPreview) {
-                RollPreviewView(rules: scoringProfile) { value in
-                    store.setPreset(value)
-                }
-                .padding(.top, 12)
-            } label: {
-                Text("DICE PREVIEW")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.muted(contrast))
-                    .accessibilityLabel("Dice preview")
-                    .accessibilityAddTraits(.isHeader)
+            Text("DICE PREVIEW")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.muted(contrast))
+                .accessibilityLabel("Dice preview")
+                .accessibilityAddTraits(.isHeader)
+
+            RollPreviewView(rules: scoringProfile) { value in
+                store.setPreset(value)
             }
-            .tint(AppTheme.accentBlue(contrast))
+            .padding(.top, 12)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -97,12 +96,19 @@ struct ScoreInputView: View {
         .background { cardBackground() }
     }
 
+    private var scoringPayload: ScoringPreferencesPayload {
+        ScoringPreferencesPayload.decode(from: scoringPreferencesJSON)
+    }
+
     private var scoringProfile: ScoringProfile {
-        ScoringProfile.profile(for: activeRuleSetId)
+        scoringPayload.resolvedProfile()
     }
 
     private var activeRulesTitle: String {
-        RulesLibrary.metadata(id: activeRuleSetId)?.title ?? scoringProfile.rulesetId
+        if scoringPayload.useCustomScoring {
+            return "Custom"
+        }
+        return RulesLibrary.metadata(id: scoringPayload.templateRulesetId)?.title ?? scoringPayload.templateRulesetId
     }
 
     private var commonScoresColumn: some View {

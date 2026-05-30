@@ -125,6 +125,7 @@
 			);
 			name = "Farkle Score.";
 			packageProductDependencies = (
+				F8A1B2002FB7E4E100BED002 /* WebImagePicker */,
 			);
 			productName = "Farkle Score.";
 			productReference = 80D3C6482FA7E4DF00BED495 /* Farkle Score..app */;
@@ -210,6 +211,9 @@
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 80D3C6492FA7E4DF00BED495 /* Products */;
+			packageReferences = (
+				F8A1B2002FB7E4E100BED001 /* XCRemoteSwiftPackageReference "SwiftUI-Web-Image-Picker" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -634,6 +638,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F8A1B2002FB7E4E100BED001 /* XCRemoteSwiftPackageReference "SwiftUI-Web-Image-Picker" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/fennelouski/SwiftUI-Web-Image-Picker.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F8A1B2002FB7E4E100BED002 /* WebImagePicker */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8A1B2002FB7E4E100BED001 /* XCRemoteSwiftPackageReference "SwiftUI-Web-Image-Picker" */;
+			productName = WebImagePicker;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 80D3C6402FA7E4DF00BED495 /* Project object */;
 }

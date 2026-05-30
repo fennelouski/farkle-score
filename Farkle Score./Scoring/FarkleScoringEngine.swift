@@ -169,7 +169,7 @@ nonisolated enum FarkleScoringEngine {
     }
 
     private static func triplePoints(face: Int, _ rules: ScoringProfile) -> Int {
-        face == 1 ? rules.threeOnes : rules.threeOfKind(face: face)
+        rules.triplePoints(for: face)
     }
 
     private static func pointsForNOfKind(face: Int, n: Int, _ rules: ScoringProfile) -> Int? {

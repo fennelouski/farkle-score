@@ -8,16 +8,22 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(AppSettings.activeRuleSetIdStorageKey) private var activeRuleSetId: String = ScoringProfile.defaultRulesetId
-    @AppStorage(AppSettings.showRollPreviewStorageKey) private var expandDicePreviewByDefault = false
+    @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
+    @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
+    @AppStorage(AppSettings.showDicePreviewStorageKey) private var showDicePreview = false
     @State private var showRulesLibrary = false
+    @State private var showCustomScoringEditor = false
+
+    private var scoringPayload: ScoringPreferencesPayload {
+        ScoringPreferencesPayload.decode(from: scoringPreferencesJSON)
+    }
 
     private var selectedRulesetMeta: RuleSetMetadata? {
-        RulesLibrary.metadata(id: activeRuleSetId)
+        RulesLibrary.metadata(id: scoringPayload.templateRulesetId)
     }
 
     private var selectedRulesetTitle: String {
-        selectedRulesetMeta?.title ?? activeRuleSetId
+        selectedRulesetMeta?.title ?? scoringPayload.templateRulesetId
     }
 
     private var shortVersion: String {
@@ -57,19 +63,46 @@ struct SettingsView: View {
             RulesLibraryView()
                 .farkleSheetChrome(detents: [.large])
         }
+        .sheet(isPresented: $showCustomScoringEditor) {
+            CustomScoringEditorView(payload: scoringPayload) { new in
+                commitScoringPayload(new)
+            }
+        }
+    }
+
+    private func commitScoringPayload(_ payload: ScoringPreferencesPayload) {
+        AppSettings.saveScoringPreferences(payload)
+        if let str = try? payload.jsonEncodedString() {
+            scoringPreferencesJSON = str
+        }
+        Task {
+            await CloudSyncController.syncScoringPreferencesToCloudIfNeeded()
+        }
     }
 
     private var formBody: some View {
         Form {
             Section {
-                Picker("Scoring ruleset", selection: $activeRuleSetId) {
+                Picker("Scoring ruleset", selection: templateRulesetBinding) {
                     ForEach(RulesLibrary.allMetadata) { meta in
                         Text(meta.title).tag(meta.id)
                     }
                 }
                 .tint(AppTheme.accentBlue(contrast))
                 .accessibilityLabel("Scoring ruleset, \(selectedRulesetTitle)")
-                .accessibilityHint("Chooses which scoring table and keypad quick scores the game uses")
+                .accessibilityHint("Chooses the template for scoring when not using custom values")
+
+                Toggle("Custom scoring", isOn: useCustomScoringBinding)
+                    .tint(AppTheme.accentBlue(contrast))
+                    .accessibilityHint("When on, keypad and optional dice preview use your custom point table instead of the selected ruleset")
+
+                Button {
+                    showCustomScoringEditor = true
+                } label: {
+                    Text("Edit custom scoring…")
+                }
+                .disabled(!scoringPayload.useCustomScoring)
+                .tint(AppTheme.accentBlue(contrast))
 
                 if let subtitle = selectedRulesetMeta?.subtitle, !subtitle.isEmpty {
                     Text(subtitle)
@@ -78,7 +111,7 @@ struct SettingsView: View {
                 }
 
                 Text(
-                    "Keypad quick scores and the scoring engine follow this ruleset. Open Rule references below for full text."
+                    "Keypad quick scores and the scoring engine follow the active rules. Open rule references for full text."
                 )
                 .font(.footnote)
                 .foregroundStyle(AppTheme.muted(contrast))
@@ -88,34 +121,55 @@ struct SettingsView: View {
                         .font(.body)
                         .tint(AppTheme.accentBlue(contrast))
                 }
-            } header: {
-                Text("Game")
-            }
 
-            Section {
-                Toggle("Expand dice preview by default", isOn: $expandDicePreviewByDefault)
+                Button {
+                    showRulesLibrary = true
+                } label: {
+                    Text("Open rule references")
+                }
+                .tint(AppTheme.accentBlue(contrast))
+                .accessibilityLabel("Rule references")
+                .accessibilityHint("Opens bundled rule references")
+
+                Toggle("Show dice preview", isOn: $showDicePreview)
                     .tint(AppTheme.accentBlue(contrast))
                     .accessibilityHint(
-                        "When on, the dice preview section on the score screen starts expanded instead of collapsed"
+                        "When on, score entry includes dice you can set to see max points for a roll"
                     )
 
-                Toggle(
-                    "Haptic feedback",
-                    isOn: Binding(
-                        get: { AppSettings.hapticsEnabled },
-                        set: { AppSettings.hapticsEnabled = $0 }
-                    )
-                )
-                .tint(AppTheme.accentBlue(contrast))
-                .accessibilityHint(
-                    "When on, light taps are felt when using the keypad, quick scores, and dice preview"
-                )
+                Text("Optional. Tap dice to preview scoring; most games only need the keypad and common scores.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.muted(contrast))
 
-                Text("Haptics apply on iPhone and iPad when supported; they are skipped on Mac.")
+                Toggle("Show auto-advance turn", isOn: $showAutoAdvanceTurnOption)
+                    .tint(AppTheme.accentBlue(contrast))
+                    .accessibilityHint(
+                        "When on, the player list shows a control to advance to the next player automatically after each score"
+                    )
+
+                Text("Turn it on here first, then enable auto-advance on the player list if you want that behavior.")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.muted(contrast))
             } header: {
-                Text("Scoring display")
+                Text("Scoring")
+            }
+
+            if DeviceHaptics.supportsUserSelectableHaptics {
+                Section {
+                    Toggle(
+                        "Haptic feedback",
+                        isOn: Binding(
+                            get: { AppSettings.hapticsEnabled },
+                            set: { AppSettings.hapticsEnabled = $0 }
+                        )
+                    )
+                    .tint(AppTheme.accentBlue(contrast))
+                    .accessibilityHint(
+                        "When on, light taps are felt when using the keypad, quick scores, and optional dice preview"
+                    )
+                } header: {
+                    Text("Feedback")
+                }
             }
 
             Section {
@@ -138,27 +192,6 @@ struct SettingsView: View {
                 .foregroundStyle(AppTheme.muted(contrast))
             } header: {
                 Text("iCloud")
-            }
-
-            Section {
-                Text(
-                    "Sign in to iCloud on each device. Names and history merge automatically; deleted entries on one device are not removed from the archive on others."
-                )
-                .font(.footnote)
-                .foregroundStyle(AppTheme.muted(contrast))
-            }
-
-            Section {
-                Button {
-                    showRulesLibrary = true
-                } label: {
-                    Text("Open rule references")
-                }
-                .tint(AppTheme.accentBlue(contrast))
-                .accessibilityLabel("Rule references")
-                .accessibilityHint("Opens bundled rule references")
-            } header: {
-                Text("Rules")
             }
 
             Section {
@@ -193,6 +226,34 @@ struct SettingsView: View {
 #if os(macOS)
         .formStyle(.grouped)
 #endif
+    }
+
+    private var templateRulesetBinding: Binding<String> {
+        Binding(
+            get: { scoringPayload.templateRulesetId },
+            set: { newId in
+                var p = scoringPayload
+                p.templateRulesetId = newId
+                if !p.useCustomScoring {
+                    p.custom = CustomScoringValues(from: ScoringProfile.profile(for: newId))
+                }
+                commitScoringPayload(p)
+            }
+        )
+    }
+
+    private var useCustomScoringBinding: Binding<Bool> {
+        Binding(
+            get: { scoringPayload.useCustomScoring },
+            set: { new in
+                var p = scoringPayload
+                p.useCustomScoring = new
+                if new {
+                    p.custom = CustomScoringValues(from: ScoringProfile.profile(for: p.templateRulesetId))
+                }
+                commitScoringPayload(p)
+            }
+        )
     }
 }
 

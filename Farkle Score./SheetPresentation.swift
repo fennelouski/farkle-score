@@ -17,4 +17,13 @@ extension View {
         self
 #endif
     }
+
+    /// Paints `AppTheme.background` under the status bar and home indicator while keeping
+    /// this view's layout inside the safe area.
+    func farkleScreenBackground() -> some View {
+        background {
+            AppTheme.background
+                .ignoresSafeArea()
+        }
+    }
 }

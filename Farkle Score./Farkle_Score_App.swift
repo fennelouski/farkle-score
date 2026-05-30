@@ -19,6 +19,7 @@ struct Farkle_Score_App: App {
     private let persistence = GameStorePersistence.default
 
     init() {
+        _ = AppSettings.loadScoringPreferences()
         let store = GameStore()
         if let restored = try? persistence.load() {
             store.restore(from: restored)

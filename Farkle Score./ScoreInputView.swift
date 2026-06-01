@@ -20,8 +20,19 @@ struct ScoreInputView: View {
 
     @ScaledMetric(relativeTo: .largeTitle) private var cursorHeight = AppTheme.inputDisplayCursorHeight
 
+    @State private var showUnusualScoreConfirmation = false
+    @State private var pendingUnusualAmount: Int?
+
     private var stackVertically: Bool {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var activePlayerAccentColor: Color {
+        guard let player = store.activePlayer else {
+            return AppTheme.primaryGreen(contrast)
+        }
+        let idx = player.effectiveAvatarColorIndex(listIndex: store.activePlayerIndex)
+        return AppTheme.avatarColor(index: idx, contrast: contrast)
     }
 
     var body: some View {
@@ -44,6 +55,11 @@ struct ScoreInputView: View {
                 dicePreviewSection
             }
         }
+        .overlay {
+            if showUnusualScoreConfirmation, let amount = pendingUnusualAmount {
+                unusualScoreOverlay(amount: amount)
+            }
+        }
     }
 
     private var dicePreviewSection: some View {
@@ -54,8 +70,8 @@ struct ScoreInputView: View {
                 .accessibilityLabel("Dice preview")
                 .accessibilityAddTraits(.isHeader)
 
-            RollPreviewView(rules: scoringProfile) { value in
-                store.setPreset(value)
+            RollPreviewView(rules: scoringProfile) { value, label in
+                store.appendTurnEntry(value: value, label: label, kind: .combination)
             }
             .padding(.top, 12)
         }
@@ -74,22 +90,21 @@ struct ScoreInputView: View {
 
             inputDisplay
 
+            TurnScoreBreakdownView(
+                entries: store.singleChipEntries,
+                onRemove: { store.removeTurnEntry(id: $0) }
+            )
+
             KeypadView(
                 onDigit: { store.appendDigit($0) },
                 onDoubleZero: { store.appendDoubleZero() },
                 onBackspace: { store.backspace() }
             )
 
-            AddToScoreButton {
-                let amount = store.parsedInputAmount
-                let playerName = store.activePlayer?.name ?? ""
-                withAnimation(reduceMotion ? nil : .snappy) {
-                    store.addToScore()
-                }
-                if amount != 0 {
-                    announce("Added \(AppTheme.spokenScore(amount)) to \(playerName)")
-                }
+            AddToScoreButton(accentColor: activePlayerAccentColor) {
+                requestAddToScore()
             }
+            .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -124,12 +139,16 @@ struct ScoreInputView: View {
                 .foregroundStyle(AppTheme.muted(contrast).opacity(0.9))
                 .accessibilityLabel("Scoring rules: \(activeRulesTitle)")
 
-            CommonScoreGridView(presets: scoringProfile.commonScorePresets()) { value in
-                store.setPreset(value)
+            CommonScoreGridView(
+                presets: scoringProfile.commonScorePresets(),
+                profile: scoringProfile,
+                singleChipEntries: store.singleChipEntries
+            ) { preset in
+                store.appendTurnEntry(preset: preset, profile: scoringProfile)
             }
 
             ClearInputButton {
-                store.clearInput()
+                store.clearTurnInput()
             }
         }
         .padding(16)
@@ -137,19 +156,27 @@ struct ScoreInputView: View {
         .background { cardBackground() }
     }
 
+    private var turnDisplayText: String {
+        if store.isTurnBuilderActive {
+            AppTheme.formatInputDisplay(String(store.resolvedTurnAmount))
+        } else {
+            AppTheme.formatInputDisplay(store.currentInput)
+        }
+    }
+
     private var inputDisplay: some View {
         HStack(alignment: .center, spacing: 6) {
-            Text(AppTheme.formatInputDisplay(store.currentInput))
+            Text(turnDisplayText)
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(AppTheme.primaryText)
                 .contentTransition(reduceMotion ? .identity : .numericText())
-                .animation(reduceMotion ? nil : .snappy, value: store.currentInput)
+                .animation(reduceMotion ? nil : .snappy, value: turnDisplayText)
                 .accessibilityHidden(true)
 
             RoundedRectangle(cornerRadius: 1)
                 .fill(AppTheme.accentYellow(contrast))
                 .frame(width: 3, height: cursorHeight)
-                .opacity(1)
+                .opacity(store.isTurnBuilderActive ? 0 : 1)
                 .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,8 +192,65 @@ struct ScoreInputView: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Turn score input")
-        .accessibilityValue(AppTheme.formatInputDisplay(store.currentInput))
+        .accessibilityValue(turnDisplayText)
         .accessibilityAddTraits(.updatesFrequently)
+    }
+
+    private func requestAddToScore() {
+        let amount = store.resolvedTurnAmount
+        if amount != 0, !store.isTurnBuilderActive, !scoringProfile.canRepresentAsCommonScores(amount: amount) {
+            pendingUnusualAmount = amount
+            showUnusualScoreConfirmation = true
+            return
+        }
+        commitAddToScore(amount: amount)
+    }
+
+    private func commitAddToScore(amount: Int) {
+        let playerName = store.activePlayer?.name ?? ""
+        let chipCount = store.singleChipEntries.count
+        withAnimation(reduceMotion ? nil : .snappy) {
+            store.addToScore()
+        }
+        if amount != 0 {
+            var message = "Added \(AppTheme.spokenScore(amount)) to \(playerName)"
+            if chipCount > 0 {
+                message += ", including \(chipCount) single\(chipCount == 1 ? "" : "s")"
+            }
+            announce(message)
+        }
+    }
+
+    private func dismissUnusualScoreConfirmation() {
+        showUnusualScoreConfirmation = false
+        pendingUnusualAmount = nil
+    }
+
+    @ViewBuilder
+    private func unusualScoreOverlay(amount: Int) -> some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    dismissUnusualScoreConfirmation()
+                }
+                .accessibilityHidden(true)
+
+            UnusualTurnScoreDialog(
+                amount: amount,
+                rulesTitle: activeRulesTitle,
+                onFixEntry: {
+                    dismissUnusualScoreConfirmation()
+                },
+                onAddAnyway: {
+                    let committed = amount
+                    dismissUnusualScoreConfirmation()
+                    commitAddToScore(amount: committed)
+                }
+            )
+            .padding(.horizontal, 24)
+        }
+        .accessibilityAddTraits(.isModal)
     }
 
     private func announce(_ message: String) {

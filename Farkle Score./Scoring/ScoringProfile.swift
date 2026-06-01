@@ -221,6 +221,14 @@ extension ScoringProfile {
     nonisolated private func fourOfKindZilch(face: Int) -> Int {
         triplePoints(for: face) * 2
     }
+
+    /// True when `amount` can be written as a sum of values from `commonScorePresets()`.
+    nonisolated func canRepresentAsCommonScores(amount: Int) -> Bool {
+        TurnScoreRepresentability.canRepresent(
+            amount,
+            denominations: commonScorePresets().map(\.value)
+        )
+    }
 }
 
 // MARK: - Codable (iCloud scoring preferences)

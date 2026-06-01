@@ -11,7 +11,7 @@ import UIKit
 
 struct RollPreviewView: View {
     let rules: ScoringProfile
-    var onUseScore: (Int) -> Void
+    var onUseScore: (Int, String) -> Void
 
     @State private var faces: [Int?] = Array(repeating: nil, count: 6)
     @Environment(\.colorSchemeContrast) private var contrast
@@ -34,24 +34,25 @@ struct RollPreviewView: View {
             HStack(spacing: 10) {
                 Button {
                     previewHaptic()
-                    onUseScore(summary.maxPoints)
+                    onUseScore(summary.maxPoints, dicePreviewEntryLabel)
                 } label: {
                     Label("USE SCORE", systemImage: "arrow.down.to.line.compact")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 44)
+                        .farkleButtonHitArea()
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .fill(AppTheme.primaryGreen(contrast))
+                        )
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.black)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .fill(AppTheme.primaryGreen(contrast))
-                )
                 .disabled(summary.diceUsed == 0)
                 .opacity(summary.diceUsed == 0 ? 0.45 : 1)
                 .accessibilityIdentifier("farkle.dicePreview.useScore")
                 .accessibilityLabel("Use score")
-                .accessibilityHint("Sets the turn score input to the maximum points for this roll")
+                .accessibilityHint("Adds the maximum points for this roll to the current turn")
 
                 Button {
                     previewHaptic()
@@ -61,17 +62,18 @@ struct RollPreviewView: View {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: 44)
+                        .farkleButtonHitArea()
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .fill(AppTheme.keypadButtonFill)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                        .stroke(AppTheme.stroke(contrast))
+                                )
+                        )
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(AppTheme.primaryText)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .fill(AppTheme.keypadButtonFill)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                .stroke(AppTheme.stroke(contrast))
-                        )
-                )
                 .accessibilityIdentifier("farkle.dicePreview.clearDice")
                 .accessibilityLabel("Clear dice")
                 .accessibilityHint("Clears all dice in the preview")
@@ -112,6 +114,7 @@ struct RollPreviewView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(minHeight: 48)
+            .farkleButtonHitArea()
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                     .fill(AppTheme.keypadButtonFill)
@@ -125,6 +128,13 @@ struct RollPreviewView: View {
         .accessibilityIdentifier("farkle.dicePreview.die.\(index + 1)")
         .accessibilityLabel(dieAccessibilityLabel(index: index, face: faces[index]))
         .accessibilityHint("Cycles this die through faces one through six, then empty")
+    }
+
+    private var dicePreviewEntryLabel: String {
+        if summary.diceUsed == 0 {
+            return "Dice preview"
+        }
+        return "Dice preview (\(AppTheme.formatScore(summary.maxPoints)))"
     }
 
     private var summaryLine: String {
@@ -182,7 +192,7 @@ struct RollPreviewView: View {
 }
 
 #Preview {
-    RollPreviewView(rules: ScoringProfile.profile(for: ScoringProfile.defaultRulesetId), onUseScore: { _ in })
+    RollPreviewView(rules: ScoringProfile.profile(for: ScoringProfile.defaultRulesetId), onUseScore: { _, _ in })
         .padding()
         .background(AppTheme.background)
 }

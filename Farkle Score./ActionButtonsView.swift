@@ -6,7 +6,7 @@
 import SwiftUI
 
 struct AddToScoreButton: View {
-    @Environment(\.colorSchemeContrast) private var contrast
+    var accentColor: Color
     var action: () -> Void
 
     var body: some View {
@@ -16,14 +16,15 @@ struct AddToScoreButton: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 16)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .fill(accentColor)
+                )
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.black)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.primaryGreen(contrast))
-        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Add to score")
         .accessibilityHint("Adds the entered amount to the active player's score")
@@ -41,27 +42,28 @@ struct ClearInputButton: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 16)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .fill(AppTheme.keypadButtonFill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast))
+                        )
+                )
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.primaryText)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.keypadButtonFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.stroke(contrast))
-                )
-        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Clear")
-        .accessibilityHint("Clears the turn score input")
+        .accessibilityHint("Clears the current turn score, singles, and combinations")
     }
 }
 
 #Preview {
     VStack(spacing: 12) {
-        AddToScoreButton(action: {})
+        AddToScoreButton(accentColor: AppTheme.avatarColor(index: 2), action: {})
         ClearInputButton(action: {})
     }
     .padding()

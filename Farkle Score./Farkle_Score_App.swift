@@ -28,8 +28,14 @@ struct Farkle_Score_App: App {
         if let mtime = GameStorePersistence.default.sessionFileModificationDate() {
             AppSettings.lastLocalPersistenceWrite = mtime
         }
+        let profiles = PlayerProfileStore()
+        var players = store.players
+        if GameRosterProfileSync.sync(players: &players, profileStore: profiles) {
+            store.players = players
+            try? persistence.save(store.snapshot)
+        }
         _gameStore = State(initialValue: store)
-        _profileStore = State(initialValue: PlayerProfileStore())
+        _profileStore = State(initialValue: profiles)
     }
 
     var body: some Scene {

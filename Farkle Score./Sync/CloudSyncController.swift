@@ -34,10 +34,12 @@ enum CloudSyncController {
             try await mergeSavedProfilesFromCloud(profileStore: profileStore, gamePlayers: store.players)
             if AppSettings.syncCurrentSession {
                 if try await applyCloudSessionIfNewer(store: store, persistence: persistence) {
+                    syncRosterToSavedProfiles(store: store, profileStore: profileStore, persistence: persistence)
                     return
                 }
             }
             try await mergeCloudRosterAndHistoryIntoStore(store: store, persistence: persistence)
+            syncRosterToSavedProfiles(store: store, profileStore: profileStore, persistence: persistence)
         } catch {
             return
         }
@@ -56,6 +58,7 @@ enum CloudSyncController {
             } catch {}
             try await mergeSavedProfilesFromCloud(profileStore: profileStore, gamePlayers: store.players)
             try await mergeCloudRosterAndHistoryIntoStore(store: store, persistence: persistence)
+            syncRosterToSavedProfiles(store: store, profileStore: profileStore, persistence: persistence)
         } catch {
             return
         }
@@ -76,6 +79,7 @@ enum CloudSyncController {
         profileStore: PlayerProfileStore,
         persistence: GameStorePersistence
     ) async {
+        syncRosterToSavedProfiles(store: store, profileStore: profileStore, persistence: persistence)
         do {
             try persistence.save(store.snapshot)
             try profileStore.persistToDisk()
@@ -118,6 +122,18 @@ enum CloudSyncController {
     }
 
     // MARK: - Private
+
+    private static func syncRosterToSavedProfiles(
+        store: GameStore,
+        profileStore: PlayerProfileStore,
+        persistence: GameStorePersistence
+    ) {
+        var players = store.players
+        if GameRosterProfileSync.sync(players: &players, profileStore: profileStore) {
+            store.players = players
+            try? persistence.save(store.snapshot)
+        }
+    }
 
     private static func mergeAppPreferencesFromCloud() async throws {
         guard let (data, cloudModified) = try await cloud.fetchAppPreferences() else { return }

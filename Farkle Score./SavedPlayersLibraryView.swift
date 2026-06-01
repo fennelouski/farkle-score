@@ -22,7 +22,7 @@ struct SavedPlayersLibraryView: View {
                     ContentUnavailableView(
                         "No saved players",
                         systemImage: "person.2",
-                        description: Text("Add players to a game and turn on “Remember this player,” or tap + to create one.")
+                        description: Text("Players in your current game appear here automatically. Tap + to add someone who isn’t in the game yet.")
                     )
                 } else {
                     List {
@@ -50,11 +50,13 @@ struct SavedPlayersLibraryView: View {
                             }
                             .buttonStyle(.plain)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    profileToDelete = profile
-                                    showDeleteConfirm = true
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
+                                if !store.isProfileInGame(profile.id) {
+                                    Button(role: .destructive) {
+                                        profileToDelete = profile
+                                        showDeleteConfirm = true
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                             }
                         }

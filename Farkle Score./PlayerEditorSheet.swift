@@ -33,8 +33,6 @@ struct PlayerEditorSheet: View {
     @State private var colorIndex: Int = 0
     @State private var draftPlayerId = UUID()
     @State private var showCustomizeAvatar = false
-    @State private var rememberPlayer = true
-    @State private var updateSavedProfile = true
     @State private var showRemoveConfirm = false
 
     private static let appearanceRowInsets = EdgeInsets(top: 16, leading: 20, bottom: 8, trailing: 20)
@@ -112,7 +110,6 @@ struct PlayerEditorSheet: View {
 
             appearanceSection
             nameSection
-            libraryOptionsSection
             removeSection
         }
         .scrollContentBackground(.hidden)
@@ -247,38 +244,6 @@ struct PlayerEditorSheet: View {
     }
 
     @ViewBuilder
-    private var libraryOptionsSection: some View {
-        switch mode {
-        case .addToGame:
-            Section {
-                Toggle(isOn: $rememberPlayer) {
-                    Label("Remember this player", systemImage: "bookmark")
-                }
-            } footer: {
-                Text("Saves name, avatar, and color to your library for quick reuse.")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.muted(contrast))
-            }
-        case .editGamePlayer:
-            if linkedProfileId != nil {
-                Section {
-                    Toggle(isOn: $updateSavedProfile) {
-                        Label("Update saved profile", systemImage: "person.crop.circle.badge.checkmark")
-                    }
-                }
-            } else {
-                Section {
-                    Toggle(isOn: $rememberPlayer) {
-                        Label("Save to library", systemImage: "books.vertical")
-                    }
-                }
-            }
-        default:
-            EmptyView()
-        }
-    }
-
-    @ViewBuilder
     private var removeSection: some View {
         if case .editGamePlayer = mode, store.canRemovePlayerDownToMinimum {
             Section {
@@ -300,7 +265,6 @@ struct PlayerEditorSheet: View {
             draftPhotoFileName = nil
             colorIndex = PlayerProfile.clampedColorIndex(store.players.count)
             draftPlayerId = UUID()
-            rememberPlayer = true
         case .editGamePlayer(let index):
             guard store.players.indices.contains(index) else { return }
             let p = store.players[index]
@@ -309,7 +273,6 @@ struct PlayerEditorSheet: View {
             draftPhotoFileName = p.avatarPhotoFileName
             colorIndex = p.effectiveAvatarColorIndex(listIndex: index)
             draftPlayerId = p.id
-            updateSavedProfile = p.profileId != nil
         case .createProfile:
             name = ""
             draftEmoji = nil
@@ -332,17 +295,13 @@ struct PlayerEditorSheet: View {
         switch mode {
         case .addToGame:
             let displayName = label.isEmpty ? nil : label
-            var profileId: UUID?
-            if rememberPlayer {
-                profileId = upsertProfileFromDraft(existingId: nil)
-            }
             store.addPlayer(
                 name: displayName,
                 avatarEmoji: draftEmoji,
                 avatarPhotoFileName: draftPhotoFileName,
-                profileId: profileId,
                 avatarColorIndex: colorIndex
             )
+            syncGameRosterToLibrary()
         case .editGamePlayer(let index):
             store.updatePlayer(
                 at: index,
@@ -353,12 +312,7 @@ struct PlayerEditorSheet: View {
                     avatarColorIndex: colorIndex
                 )
             )
-            if updateSavedProfile, let pid = store.players[index].profileId ?? linkedProfileId {
-                syncProfileToLibrary(profileId: pid)
-            } else if rememberPlayer {
-                let newId = upsertProfileFromDraft(existingId: nil)
-                store.linkPlayer(at: index, toProfile: newId)
-            }
+            syncGameRosterToLibrary()
         case .createProfile:
             _ = upsertProfileFromDraft(existingId: nil)
         case .editProfile(let profile):
@@ -390,16 +344,11 @@ struct PlayerEditorSheet: View {
         return id
     }
 
-    private func syncProfileToLibrary(profileId: UUID) {
-        guard var existing = profileStore.profile(id: profileId) else {
-            _ = upsertProfileFromDraft(existingId: profileId)
-            return
+    private func syncGameRosterToLibrary() {
+        var players = store.players
+        if GameRosterProfileSync.sync(players: &players, profileStore: profileStore) {
+            store.players = players
         }
-        existing.name = trimmedName
-        existing.avatarEmoji = draftEmoji
-        existing.avatarPhotoFileName = draftPhotoFileName
-        existing.avatarColorIndex = colorIndex
-        commitProfile(existing, existingId: profileId)
     }
 
     private func commitProfile(_ profile: PlayerProfile, existingId: UUID?) {

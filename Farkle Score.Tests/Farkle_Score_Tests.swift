@@ -619,6 +619,70 @@ struct PlayerProfileStoreTests {
     }
 }
 
+struct GameRosterProfileSyncTests {
+
+    @Test func syncBackfillsDefaultRosterIntoLibrary() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        var players = GameStore.defaultPlayers()
+        #expect(players.allSatisfy { $0.profileId == nil })
+        #expect(profileStore.profiles.isEmpty)
+
+        let changed = GameRosterProfileSync.sync(players: &players, profileStore: profileStore)
+
+        #expect(changed)
+        #expect(players.count == 3)
+        #expect(players.allSatisfy { $0.profileId != nil })
+        #expect(profileStore.profiles.count == 3)
+        #expect(Set(profileStore.profiles.map(\.name)) == Set(["Alice", "Bob", "Chris"]))
+    }
+
+    @Test func syncAdoptsPhotoToCanonicalProfileFilename() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xD9])
+        let tempPhoto = try AvatarImageStore.saveImageData(jpeg)
+        defer { AvatarImageStore.deleteFile(named: tempPhoto) }
+
+        var players = [
+            Player(name: "Sam", avatarPhotoFileName: tempPhoto),
+            Player(name: "Pat"),
+        ]
+        _ = GameRosterProfileSync.sync(players: &players, profileStore: profileStore)
+
+        let profileId = try #require(players[0].profileId)
+        let canonical = AvatarImageStore.profilePhotoFileName(for: profileId)
+        #expect(players[0].avatarPhotoFileName == canonical)
+        #expect(profileStore.profile(id: profileId)?.avatarPhotoFileName == canonical)
+        defer { AvatarImageStore.deleteFile(named: canonical) }
+    }
+
+    @Test func syncUpdatesExistingLinkedProfileFromRoster() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        let profileId = UUID()
+        profileStore.add(
+            PlayerProfile(id: profileId, name: "Old Name", avatarColorIndex: 0),
+            persist: true
+        )
+        var players = [
+            Player(name: "New Name", profileId: profileId, avatarColorIndex: 4),
+            Player(name: "Other"),
+        ]
+
+        _ = GameRosterProfileSync.sync(players: &players, profileStore: profileStore)
+
+        #expect(profileStore.profile(id: profileId)?.name == "New Name")
+        #expect(profileStore.profile(id: profileId)?.avatarColorIndex == 4)
+    }
+}
+
 struct GameStoreProfileTests {
 
     @Test func addPlayerFromProfileLinksIdentity() {

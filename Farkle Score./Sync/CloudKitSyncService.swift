@@ -58,7 +58,15 @@ actor CloudKitSyncService: CloudSyncing {
         let recordID = CKRecord.ID(recordName: CloudKitSchema.rosterRecordName, zoneID: zoneID)
         let record = try await fetchOrCreateRecord(recordID: recordID, recordType: CloudKitSchema.rosterRecordType, database: db)
         let stripped = players.map {
-            Player(id: $0.id, name: $0.name, score: 0, avatarEmoji: $0.avatarEmoji, avatarPhotoFileName: nil)
+            Player(
+                id: $0.id,
+                name: $0.name,
+                score: 0,
+                avatarEmoji: $0.avatarEmoji,
+                avatarPhotoFileName: nil,
+                profileId: $0.profileId,
+                avatarColorIndex: $0.avatarColorIndex
+            )
         }
         let data = try rosterEncoder.encode(stripped)
         record[CloudKitSchema.playersJSONKey] = data as CKRecordValue
@@ -164,6 +172,60 @@ actor CloudKitSyncService: CloudSyncing {
         try await registerZoneSubscription(zoneID: zoneID)
     }
 
+    func fetchSavedProfiles() async throws -> [PlayerProfile] {
+        let db = container.privateCloudDatabase
+        let zoneID = try await ensureZoneExists()
+        let query = CKQuery(recordType: CloudKitSchema.savedProfileRecordType, predicate: NSPredicate(value: true))
+        var collected: [PlayerProfile] = []
+        var cursor: CKQueryOperation.Cursor?
+        repeat {
+            let matchResults: [(CKRecord.ID, Result<CKRecord, Error>)]
+            let next: CKQueryOperation.Cursor?
+            if let c = cursor {
+                (matchResults, next) = try await db.records(continuingMatchFrom: c)
+            } else {
+                (matchResults, next) = try await db.records(matching: query, inZoneWith: zoneID)
+            }
+            for (_, result) in matchResults {
+                if case let .success(rec) = result, let profile = Self.playerProfile(from: rec) {
+                    collected.append(profile)
+                }
+            }
+            cursor = next
+        } while cursor != nil
+        return collected
+    }
+
+    func saveSavedProfile(_ profile: PlayerProfile) async throws {
+        let db = container.privateCloudDatabase
+        let zoneID = try await ensureZoneExists()
+        let recordID = CKRecord.ID(recordName: profile.id.uuidString, zoneID: zoneID)
+        let record = try await fetchOrCreateRecord(
+            recordID: recordID,
+            recordType: CloudKitSchema.savedProfileRecordType,
+            database: db
+        )
+        Self.populate(record: record, from: profile)
+        if let fileName = profile.avatarPhotoFileName,
+           let data = try AvatarImageStore.data(for: fileName) {
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + ".jpg")
+            try data.write(to: tempURL, options: [.atomic])
+            record[CloudKitSchema.savedProfilePhotoKey] = CKAsset(fileURL: tempURL)
+            try? FileManager.default.removeItem(at: tempURL)
+        } else {
+            record[CloudKitSchema.savedProfilePhotoKey] = nil
+        }
+        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: false)
+    }
+
+    func deleteSavedProfile(id: UUID) async throws {
+        let db = container.privateCloudDatabase
+        let zoneID = try await ensureZoneExists()
+        let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
+        _ = try await db.modifyRecords(saving: [], deleting: [recordID], savePolicy: .changedKeys, atomically: true)
+    }
+
     // MARK: - Private
 
     private func registerZoneSubscription(zoneID: CKRecordZone.ID) async throws {
@@ -225,5 +287,54 @@ actor CloudKitSyncService: CloudSyncing {
         record[CloudKitSchema.playerIdKey] = entry.playerId.uuidString as CKRecordValue
         record[CloudKitSchema.amountKey] = entry.amount as CKRecordValue
         record[CloudKitSchema.timestampKey] = entry.timestamp as CKRecordValue
+    }
+
+    private nonisolated static func populate(record: CKRecord, from profile: PlayerProfile) {
+        record[CloudKitSchema.savedProfileIdKey] = profile.id.uuidString as CKRecordValue
+        record[CloudKitSchema.savedProfileNameKey] = profile.name as CKRecordValue
+        record[CloudKitSchema.savedProfileColorIndexKey] = profile.avatarColorIndex as CKRecordValue
+        record[CloudKitSchema.savedProfileModifiedAtKey] = profile.modifiedAt as CKRecordValue
+        if let emoji = profile.avatarEmoji {
+            record[CloudKitSchema.savedProfileEmojiKey] = emoji as CKRecordValue
+        } else {
+            record[CloudKitSchema.savedProfileEmojiKey] = nil
+        }
+        let canonical = AvatarImageStore.profilePhotoFileName(for: profile.id)
+        record[CloudKitSchema.savedProfilePhotoFileNameKey] = canonical as CKRecordValue
+    }
+
+    private nonisolated static func playerProfile(from record: CKRecord) -> PlayerProfile? {
+        guard
+            let idString = record[CloudKitSchema.savedProfileIdKey] as? String,
+            let id = UUID(uuidString: idString),
+            let name = record[CloudKitSchema.savedProfileNameKey] as? String
+        else {
+            return nil
+        }
+        let colorIndex = record[CloudKitSchema.savedProfileColorIndexKey] as? Int ?? 0
+        let modified = record[CloudKitSchema.savedProfileModifiedAtKey] as? Date
+            ?? record.modificationDate
+            ?? record.creationDate
+            ?? .now
+        let emoji = record[CloudKitSchema.savedProfileEmojiKey] as? String
+        var photoFileName = record[CloudKitSchema.savedProfilePhotoFileNameKey] as? String
+            ?? AvatarImageStore.profilePhotoFileName(for: id)
+        if let asset = record[CloudKitSchema.savedProfilePhotoKey] as? CKAsset,
+           let sourceURL = asset.fileURL,
+           let data = try? Data(contentsOf: sourceURL) {
+            let canonical = AvatarImageStore.profilePhotoFileName(for: id)
+            if let dest = try? AvatarImageStore.fileURL(for: canonical) {
+                try? data.write(to: dest, options: [.atomic])
+                photoFileName = canonical
+            }
+        }
+        return PlayerProfile(
+            id: id,
+            name: name,
+            avatarEmoji: emoji,
+            avatarPhotoFileName: photoFileName,
+            avatarColorIndex: colorIndex,
+            modifiedAt: modified
+        )
     }
 }

@@ -14,4 +14,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(GameStore.preview)
+        .environment(PlayerProfileStore())
 }

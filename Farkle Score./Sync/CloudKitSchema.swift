@@ -36,6 +36,15 @@ enum CloudKitSchema: Sendable {
     nonisolated static let appPreferencesPayloadKey = "payload"
     nonisolated static let appPreferencesModifiedAtKey = "modifiedAt"
 
+    nonisolated static let savedProfileRecordType = "SavedPlayerProfile"
+    nonisolated static let savedProfileIdKey = "profileId"
+    nonisolated static let savedProfileNameKey = "name"
+    nonisolated static let savedProfileEmojiKey = "avatarEmoji"
+    nonisolated static let savedProfileColorIndexKey = "avatarColorIndex"
+    nonisolated static let savedProfileModifiedAtKey = "modifiedAt"
+    nonisolated static let savedProfilePhotoKey = "photo"
+    nonisolated static let savedProfilePhotoFileNameKey = "avatarPhotoFileName"
+
     nonisolated static let zoneSubscriptionID = "FarkleSync-zone-subscription"
 
     nonisolated static var containerIdentifier: String {

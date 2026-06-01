@@ -19,8 +19,10 @@ enum RosterSeeding {
                 id: c.id,
                 name: c.name,
                 score: match?.score ?? 0,
-                avatarEmoji: c.avatarEmoji,
-                avatarPhotoFileName: match?.avatarPhotoFileName
+                avatarEmoji: c.avatarEmoji ?? match?.avatarEmoji,
+                avatarPhotoFileName: match?.avatarPhotoFileName,
+                profileId: c.profileId ?? match?.profileId,
+                avatarColorIndex: c.avatarColorIndex ?? match?.avatarColorIndex
             )
         }
         var n = combined.count + 1
@@ -38,7 +40,15 @@ enum RosterSeeding {
     /// Pads with default-named players until at least two exist.
     nonisolated static func playersByPaddingRoster(_ roster: [Player]) -> [Player] {
         var players = roster.map {
-            Player(id: $0.id, name: $0.name, score: 0, avatarEmoji: $0.avatarEmoji, avatarPhotoFileName: $0.avatarPhotoFileName)
+            Player(
+                id: $0.id,
+                name: $0.name,
+                score: 0,
+                avatarEmoji: $0.avatarEmoji,
+                avatarPhotoFileName: $0.avatarPhotoFileName,
+                profileId: $0.profileId,
+                avatarColorIndex: $0.avatarColorIndex
+            )
         }
         var n = players.count + 1
         while players.count < minPlayers {

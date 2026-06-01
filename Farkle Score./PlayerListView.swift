@@ -11,14 +11,11 @@ struct PlayerListView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
-    @State private var showAddPlayerSheet = false
+    @State private var editorMode: PlayerEditorMode?
+    @State private var showSavedPlayersLibrary = false
     @State private var showSettings = false
     @State private var showRulesLibrary = false
-    @State private var newPlayerName = ""
-    @State private var showCustomizeAvatar = false
-    @State private var draftAvatarEmoji: String?
-    @State private var draftAvatarPhotoFileName: String?
-    @State private var draftPlayerPreviewId = UUID()
+    @State private var showNewGameConfirmation = false
 
     private var needsVerticalScroll: Bool {
         horizontalSizeClass == .regular && verticalSizeClass == .compact
@@ -36,15 +33,13 @@ struct PlayerListView: View {
             }
         }
         .padding(16)
-        .sheet(isPresented: $showAddPlayerSheet) {
-            addPlayerSheet
+        .sheet(item: $editorMode) { mode in
+            PlayerEditorSheet(mode: mode) {
+                editorMode = nil
+            }
         }
-        .sheet(isPresented: $showCustomizeAvatar) {
-            CustomizePlayerAvatarSheet(
-                avatarEmoji: $draftAvatarEmoji,
-                avatarPhotoFileName: $draftAvatarPhotoFileName
-            )
-            .farkleSheetChrome()
+        .sheet(isPresented: $showSavedPlayersLibrary) {
+            SavedPlayersLibraryView()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -52,8 +47,15 @@ struct PlayerListView: View {
         }
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
-                .farkleSheetChrome(detents: [.large])
+                .farkleRulesSheet()
         }
+        .farkleConfirmationDialog(
+            isPresented: $showNewGameConfirmation,
+            title: "Start new game?",
+            message: "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same.",
+            confirmTitle: "NEW GAME",
+            onConfirm: { store.newGame() }
+        )
     }
 
     private var sidebarColumn: some View {
@@ -72,26 +74,14 @@ struct PlayerListView: View {
                 if needsVerticalScroll {
                     VStack(spacing: 8) {
                         ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
-                            PlayerRowView(
-                                index: index,
-                                player: player,
-                                allPlayers: store.players,
-                                isActive: index == store.activePlayerIndex,
-                                onSelect: { store.selectPlayer(at: index) }
-                            )
+                            playerRow(index: index, player: player)
                         }
                     }
                 } else {
                     ScrollView {
                         VStack(spacing: 8) {
                             ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
-                                PlayerRowView(
-                                    index: index,
-                                    player: player,
-                                    allPlayers: store.players,
-                                    isActive: index == store.activePlayerIndex,
-                                    onSelect: { store.selectPlayer(at: index) }
-                                )
+                                playerRow(index: index, player: player)
                             }
                         }
                     }
@@ -121,6 +111,19 @@ struct PlayerListView: View {
         }
     }
 
+    private func playerRow(index: Int, player: Player) -> some View {
+        PlayerRowView(
+            index: index,
+            player: player,
+            allPlayers: store.players,
+            isActive: index == store.activePlayerIndex,
+            onSelect: { store.selectPlayer(at: index) },
+            onEdit: { editorMode = .editGamePlayer(index: index) },
+            onRemove: { store.removePlayer(at: index) },
+            canRemoveFromGame: store.canRemovePlayerDownToMinimum
+        )
+    }
+
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
@@ -134,12 +137,25 @@ struct PlayerListView: View {
             Spacer(minLength: 8)
             HStack(spacing: 0) {
                 Button {
+                    showSavedPlayersLibrary = true
+                } label: {
+                    Image(systemName: "person.2.fill")
+                        .font(.title3)
+                        .foregroundStyle(AppTheme.primaryGreen)
+                        .padding(8)
+                        .farkleButtonHitArea()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Saved players")
+
+                Button {
                     showRulesLibrary = true
                 } label: {
                     Image(systemName: "book.closed")
                         .font(.title3)
                         .foregroundStyle(AppTheme.accentYellow(contrast))
                         .padding(8)
+                        .farkleButtonHitArea()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Rule references")
@@ -151,6 +167,7 @@ struct PlayerListView: View {
                         .font(.title3)
                         .foregroundStyle(AppTheme.accentBlue(contrast))
                         .padding(8)
+                        .farkleButtonHitArea()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Settings")
@@ -163,29 +180,26 @@ struct PlayerListView: View {
 
     private var addPlayerButton: some View {
         Button {
-            newPlayerName = ""
-            draftAvatarEmoji = nil
-            draftAvatarPhotoFileName = nil
-            draftPlayerPreviewId = UUID()
-            showAddPlayerSheet = true
+            editorMode = .addToGame
         } label: {
             Label("ADD PLAYER", systemImage: "plus.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 14)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .fill(AppTheme.cardFill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast))
+                        )
+                )
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentBlue(contrast))
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.cardFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.stroke(contrast))
-                )
-        )
         .disabled(!store.canAddPlayer)
         .opacity(store.canAddPlayer ? 1 : 0.45)
         .padding(.bottom, 8)
@@ -196,91 +210,36 @@ struct PlayerListView: View {
 
     private var newGameButton: some View {
         Button {
-            store.newGame()
+            showNewGameConfirmation = true
         } label: {
             Label("NEW GAME", systemImage: "arrow.clockwise.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
                 .padding(.vertical, 14)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .fill(AppTheme.cardFill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast))
+                        )
+                )
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentYellow(contrast))
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.cardFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.stroke(contrast))
-                )
-        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("New game")
-        .accessibilityHint("Resets all scores and clears the history")
-    }
-
-    private var addPlayerSheet: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    AddPlayerAvatarPreview(
-                        store: store,
-                        draftPlayerId: draftPlayerPreviewId,
-                        newPlayerName: newPlayerName,
-                        draftEmoji: draftAvatarEmoji,
-                        draftPhotoFileName: draftAvatarPhotoFileName
-                    )
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-
-                    Button {
-                        showCustomizeAvatar = true
-                    } label: {
-                        Label("Customize avatar…", systemImage: "person.crop.circle.badge.plus")
-                    }
-                } header: {
-                    Text("Avatar")
-                } footer: {
-                    Text("Defaults to initials. Open customize to add an emoji or photo.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.muted(contrast))
-                }
-
-                TextField("Name", text: $newPlayerName)
-#if os(iOS)
-                    .textInputAutocapitalization(.words)
-#endif
-                    .accessibilityLabel("Player name")
-                    .accessibilityHint("Optional. Leave blank to use a default name")
-            }
-            .navigationTitle("Add Player")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showAddPlayerSheet = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        store.addPlayer(
-                            name: newPlayerName.isEmpty ? nil : newPlayerName,
-                            avatarEmoji: draftAvatarEmoji,
-                            avatarPhotoFileName: draftAvatarPhotoFileName
-                        )
-                        showAddPlayerSheet = false
-                    }
-                    .disabled(!store.canAddPlayer)
-                }
-            }
-        }
-#if os(iOS)
-        .farkleSheetChrome()
-#endif
+        .accessibilityHint("Opens a confirmation before resetting scores and clearing history")
     }
 }
 
 #Preview {
     PlayerListView()
         .environment(GameStore.preview)
+        .environment(PlayerProfileStore())
         .frame(width: 280, height: 700)
         .background(AppTheme.background)
 }

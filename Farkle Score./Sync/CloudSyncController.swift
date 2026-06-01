@@ -17,7 +17,11 @@ enum CloudSyncController {
     private static let scoringPrefsEncoder = JSONEncoder()
     private static let scoringPrefsDecoder = JSONDecoder()
 
-    static func bootstrapAfterLaunch(store: GameStore, persistence: GameStorePersistence) async {
+    static func bootstrapAfterLaunch(
+        store: GameStore,
+        profileStore: PlayerProfileStore,
+        persistence: GameStorePersistence
+    ) async {
         guard await cloud.fetchAccountStatus() == .available else { return }
         do {
             try await cloud.registerZoneSubscriptionIfNeeded()
@@ -27,6 +31,7 @@ enum CloudSyncController {
             do {
                 try await mergeAppPreferencesFromCloud()
             } catch {}
+            try await mergeSavedProfilesFromCloud(profileStore: profileStore, gamePlayers: store.players)
             if AppSettings.syncCurrentSession {
                 if try await applyCloudSessionIfNewer(store: store, persistence: persistence) {
                     return
@@ -39,12 +44,17 @@ enum CloudSyncController {
     }
 
     /// Merge-only refresh (e.g. silent push); does not replace the whole session from iCloud.
-    static func mergeFromRemoteNotification(store: GameStore, persistence: GameStorePersistence) async {
+    static func mergeFromRemoteNotification(
+        store: GameStore,
+        profileStore: PlayerProfileStore,
+        persistence: GameStorePersistence
+    ) async {
         guard await cloud.fetchAccountStatus() == .available else { return }
         do {
             do {
                 try await mergeAppPreferencesFromCloud()
             } catch {}
+            try await mergeSavedProfilesFromCloud(profileStore: profileStore, gamePlayers: store.players)
             try await mergeCloudRosterAndHistoryIntoStore(store: store, persistence: persistence)
         } catch {
             return
@@ -61,9 +71,14 @@ enum CloudSyncController {
         }
     }
 
-    static func persistAndSync(store: GameStore, persistence: GameStorePersistence) async {
+    static func persistAndSync(
+        store: GameStore,
+        profileStore: PlayerProfileStore,
+        persistence: GameStorePersistence
+    ) async {
         do {
             try persistence.save(store.snapshot)
+            try profileStore.persistToDisk()
         } catch {
             return
         }
@@ -74,6 +89,7 @@ enum CloudSyncController {
 
         do {
             try await cloud.saveRosterPlayers(store.players)
+            try await pushSavedProfilesToCloud(profileStore: profileStore)
 
             if AppSettings.syncCurrentSession {
                 let payload = try encodeSnapshot(store.snapshot)
@@ -161,5 +177,48 @@ enum CloudSyncController {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
         return try encoder.encode(state)
+    }
+
+    static func saveProfileToCloud(_ profile: PlayerProfile) async {
+        guard await cloud.fetchAccountStatus() == .available else { return }
+        var prepared = profile
+        prepared.modifiedAt = .now
+        if let adopted = try? AvatarImageStore.adoptPhotoForProfile(
+            profileId: profile.id,
+            existingFileName: profile.avatarPhotoFileName
+        ) {
+            prepared.avatarPhotoFileName = adopted
+        }
+        do {
+            try await cloud.saveSavedProfile(prepared)
+        } catch {}
+    }
+
+    static func deleteProfileFromCloud(id: UUID) async {
+        guard await cloud.fetchAccountStatus() == .available else { return }
+        do {
+            try await cloud.deleteSavedProfile(id: id)
+        } catch {}
+    }
+
+    private static func mergeSavedProfilesFromCloud(
+        profileStore: PlayerProfileStore,
+        gamePlayers: [Player]
+    ) async throws {
+        let cloudProfiles = try await cloud.fetchSavedProfiles()
+        profileStore.mergeFromCloud(cloudProfiles, gamePlayers: gamePlayers)
+    }
+
+    private static func pushSavedProfilesToCloud(profileStore: PlayerProfileStore) async throws {
+        for profile in profileStore.allSortedByName() {
+            var prepared = profile
+            if let adopted = try? AvatarImageStore.adoptPhotoForProfile(
+                profileId: profile.id,
+                existingFileName: profile.avatarPhotoFileName
+            ) {
+                prepared.avatarPhotoFileName = adopted
+            }
+            try await cloud.saveSavedProfile(prepared)
+        }
     }
 }

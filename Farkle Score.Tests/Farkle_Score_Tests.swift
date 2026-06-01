@@ -210,6 +210,74 @@ struct GameStoreTests {
         #expect(store.history.isEmpty)
     }
 
+    @Test func deleteHistoryEntryRemovesMiddleEntryAndAdjustsScore() {
+        let aliceId = UUID()
+        let bobId = UUID()
+        let entryAlice = ScoreEntry(playerId: aliceId, amount: 100)
+        let entryBob = ScoreEntry(playerId: bobId, amount: 50)
+        let store = GameStore(
+            players: [
+                Player(id: aliceId, name: "Alice", score: 100),
+                Player(id: bobId, name: "Bob", score: 50),
+            ],
+            activePlayerIndex: 0,
+            history: [entryAlice, entryBob]
+        )
+        store.deleteHistoryEntry(id: entryAlice.id)
+        #expect(store.history.count == 1)
+        #expect(store.history[0].id == entryBob.id)
+        #expect(store.players.first(where: { $0.id == aliceId })?.score == 0)
+        #expect(store.players.first(where: { $0.id == bobId })?.score == 50)
+    }
+
+    @Test func deleteHistoryEntryWhenPlayerRemovedDropsHistoryWithoutAdjustingScores() {
+        let aliceId = UUID()
+        let bobId = UUID()
+        let orphanEntry = ScoreEntry(playerId: aliceId, amount: 100)
+        let store = GameStore(
+            players: [Player(id: bobId, name: "Bob", score: 200)],
+            activePlayerIndex: 0,
+            history: [orphanEntry]
+        )
+        store.deleteHistoryEntry(id: orphanEntry.id)
+        #expect(store.history.isEmpty)
+        #expect(store.players[0].score == 200)
+    }
+
+    @Test func prepareToEditHistoryEntryPrefillsInputAndSelectsPlayer() {
+        let aliceId = UUID()
+        let bobId = UUID()
+        let entryAlice = ScoreEntry(playerId: aliceId, amount: 75)
+        let entryBob = ScoreEntry(playerId: bobId, amount: 25)
+        let store = GameStore(
+            players: [
+                Player(id: aliceId, name: "Alice", score: 75),
+                Player(id: bobId, name: "Bob", score: 25),
+            ],
+            activePlayerIndex: 1,
+            history: [entryAlice, entryBob]
+        )
+        #expect(store.prepareToEditHistoryEntry(id: entryAlice.id))
+        #expect(store.history.count == 1)
+        #expect(store.history[0].id == entryBob.id)
+        #expect(store.activePlayerIndex == 0)
+        #expect(store.players.first(where: { $0.id == aliceId })?.score == 0)
+        #expect(store.currentInput == "75")
+    }
+
+    @Test func prepareToEditHistoryEntryReturnsFalseWhenPlayerMissing() {
+        let aliceId = UUID()
+        let orphanEntry = ScoreEntry(playerId: aliceId, amount: 50)
+        let store = GameStore(
+            players: [Player(name: "Bob", score: 0)],
+            activePlayerIndex: 0,
+            history: [orphanEntry]
+        )
+        #expect(!store.prepareToEditHistoryEntry(id: orphanEntry.id))
+        #expect(store.history.count == 1)
+        #expect(store.currentInput.isEmpty)
+    }
+
     @Test func initClampsActivePlayerIndexToLastPlayer() {
         let store = GameStore(
             players: [Player(name: "A"), Player(name: "B")],
@@ -480,11 +548,106 @@ struct PlayerMonogramTests {
         #expect(p.name == "Lee")
         #expect(p.avatarEmoji == nil)
         #expect(p.avatarPhotoFileName == nil)
+        #expect(p.profileId == nil)
+        #expect(p.avatarColorIndex == nil)
+    }
+
+    @Test func playerJSONRoundTripWithProfileFields() throws {
+        let profileId = UUID()
+        let original = Player(
+            name: "Sam",
+            score: 3,
+            avatarEmoji: "🎯",
+            profileId: profileId,
+            avatarColorIndex: 2
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(Player.self, from: data)
+        #expect(decoded == original)
+    }
+
+    @Test func effectiveAvatarColorIndexUsesStoredValue() {
+        let p = Player(name: "A", avatarColorIndex: 4)
+        #expect(p.effectiveAvatarColorIndex(listIndex: 0) == 4)
+        let fallback = Player(name: "B")
+        #expect(fallback.effectiveAvatarColorIndex(listIndex: 3) == 3)
     }
 
     @Test func normalizedEmojiExtractsFirstEmoji() {
         #expect(Player.normalizedEmoji("hi🎲there") == "🎲")
         #expect(Player.normalizedEmoji("nope") == nil)
+    }
+}
+
+// MARK: - Saved player profiles
+
+struct ProfileMergeTests {
+
+    @Test func mergeUsesNewerModifiedAtPerId() {
+        let id = UUID()
+        let older = PlayerProfile(id: id, name: "Old", modifiedAt: Date(timeIntervalSince1970: 100))
+        let newer = PlayerProfile(id: id, name: "New", modifiedAt: Date(timeIntervalSince1970: 200))
+        let merged = ProfileMerge.merged(local: [older], cloud: [newer])
+        #expect(merged.count == 1)
+        #expect(merged[0].name == "New")
+    }
+
+    @Test func mergeKeepsLocalWhenNewer() {
+        let id = UUID()
+        let local = PlayerProfile(id: id, name: "Local", modifiedAt: Date(timeIntervalSince1970: 300))
+        let cloud = PlayerProfile(id: id, name: "Cloud", modifiedAt: Date(timeIntervalSince1970: 200))
+        let merged = ProfileMerge.merged(local: [local], cloud: [cloud])
+        #expect(merged[0].name == "Local")
+    }
+}
+
+struct PlayerProfileStoreTests {
+
+    @Test func crudRoundTrip() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let persistence = PlayerProfilePersistence(fileURL: url)
+        let store = PlayerProfileStore(persistence: persistence)
+        let profile = PlayerProfile(name: "Jordan", avatarColorIndex: 1)
+        store.add(profile, persist: true)
+        #expect(store.profiles.count == 1)
+        store.update(PlayerProfile(id: profile.id, name: "Jordan S.", avatarColorIndex: 2), persist: true)
+        #expect(store.profile(id: profile.id)?.name == "Jordan S.")
+        store.delete(id: profile.id, persist: true)
+        #expect(store.profiles.isEmpty)
+    }
+}
+
+struct GameStoreProfileTests {
+
+    @Test func addPlayerFromProfileLinksIdentity() {
+        let profileId = UUID()
+        let profile = PlayerProfile(id: profileId, name: "Riley", avatarEmoji: "⭐", avatarColorIndex: 3)
+        let store = GameStore(players: [Player(name: "A"), Player(name: "B")])
+        store.addPlayer(from: profile)
+        #expect(store.players.count == 3)
+        #expect(store.players[2].profileId == profileId)
+        #expect(store.players[2].name == "Riley")
+        #expect(store.players[2].avatarColorIndex == 3)
+        #expect(store.isProfileInGame(profileId))
+    }
+
+    @Test func updateAndRemovePlayer() {
+        let store = GameStore(players: [
+            Player(name: "A"),
+            Player(name: "B"),
+            Player(name: "C"),
+        ])
+        store.updatePlayer(
+            at: 1,
+            with: GameStore.PlayerIdentityUpdate(name: "Bob Jr.", avatarColorIndex: 5)
+        )
+        #expect(store.players[1].name == "Bob Jr.")
+        #expect(store.players[1].avatarColorIndex == 5)
+        store.removePlayer(at: 2)
+        #expect(store.players.count == 2)
+        #expect(store.canRemovePlayerDownToMinimum == false)
     }
 }
 
@@ -595,5 +758,147 @@ struct AppSettingsTests {
         let subtitle = RulesLibrary.metadata(id: id)?.subtitle
         #expect(subtitle != nil)
         #expect(!(subtitle?.isEmpty ?? true))
+    }
+}
+
+struct TurnScoreBuilderTests {
+
+    private var cardgamesProfile: ScoringProfile {
+        ScoringProfile.profile(for: "farkle-cardgames-io")
+    }
+
+    private func preset(label: String, in profile: ScoringProfile) -> CommonScorePreset {
+        let presets = profile.commonScorePresets()
+        guard let match = presets.first(where: { $0.label == label }) else {
+            Issue.record("Missing preset \(label)")
+            return CommonScorePreset(value: 0, label: label)
+        }
+        return match
+    }
+
+    @Test func isRepeatableSingleOnlyForOnesAndFives() {
+        let profile = cardgamesProfile
+        let single1 = preset(label: "Single 1", in: profile)
+        let single5 = preset(label: "Single 5", in: profile)
+        let three6 = preset(label: "Three 6s", in: profile)
+        #expect(profile.isRepeatableSingle(preset: single1))
+        #expect(profile.isRepeatableSingle(preset: single5))
+        #expect(!profile.isRepeatableSingle(preset: three6))
+    }
+
+    @Test func build850WithChipsAndCombo() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        #expect(store.resolvedTurnAmount == 850)
+        #expect(store.singleChipEntries.count == 3)
+        #expect(store.turnEntries.count == 4)
+    }
+
+    @Test func removeSingleChipByIdUpdatesTotal() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        let firstSingleId = store.singleChipEntries[0].id
+        store.removeTurnEntry(id: firstSingleId)
+        #expect(store.resolvedTurnAmount == 750)
+        #expect(store.singleChipEntries.count == 2)
+        #expect(store.turnEntries.count == 3)
+    }
+
+    @Test func backspaceRemovesLastEntryIncludingCombo() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        store.backspace()
+        #expect(store.resolvedTurnAmount == 250)
+        #expect(store.turnEntries.count == 3)
+    }
+
+    @Test func comboEntryIsNotASingleChip() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        #expect(store.singleChipEntries.isEmpty)
+        #expect(store.resolvedTurnAmount == 600)
+    }
+
+    @Test func keypadDigitClearsTurnBuilder() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendDigit("5")
+        #expect(store.turnEntries.isEmpty)
+        #expect(store.currentInput == "5")
+        #expect(store.resolvedTurnAmount == 5)
+    }
+
+    @Test func addToScoreCommitsBuilderTotalOnce() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        store.addToScore()
+        #expect(store.players[0].score == 150)
+        #expect(store.history.count == 1)
+        #expect(store.history.last?.amount == 150)
+        #expect(store.turnEntries.isEmpty)
+    }
+
+    @Test func selectPlayerClearsTurnBuilder() {
+        let store = GameStore(
+            players: [Player(name: "A", score: 0), Player(name: "B", score: 0)],
+            activePlayerIndex: 0
+        )
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
+        store.selectPlayer(at: 1)
+        #expect(store.turnEntries.isEmpty)
+        #expect(store.activePlayerIndex == 1)
+    }
+}
+
+struct TurnScoreRepresentabilityTests {
+
+    @Test func sevenIsNotRepresentableForCardgamesIo() {
+        let rules = ScoringProfile.profile(for: "farkle-cardgames-io")
+        #expect(!rules.canRepresentAsCommonScores(amount: 7))
+        #expect(!TurnScoreRepresentability.canRepresent(7, denominations: rules.commonScorePresets().map(\.value)))
+    }
+
+    @Test func fiftyAndOneFiftyAreRepresentableForCardgamesIo() {
+        let rules = ScoringProfile.profile(for: "farkle-cardgames-io")
+        #expect(rules.canRepresentAsCommonScores(amount: 50))
+        #expect(rules.canRepresentAsCommonScores(amount: 150))
+    }
+
+    @Test func zeroIsRepresentable() {
+        let rules = ScoringProfile.profile(for: ScoringProfile.defaultRulesetId)
+        #expect(rules.canRepresentAsCommonScores(amount: 0))
+        #expect(TurnScoreRepresentability.canRepresent(0, denominations: [50, 100]))
+    }
+
+    @Test func gcdTrapOneFiftyWithHundredAndTwoHundredOnly() {
+        #expect(!TurnScoreRepresentability.canRepresent(150, denominations: [100, 200]))
+    }
+
+    @Test func everyCommonPresetValueIsRepresentableForDefaultRuleset() {
+        let rules = ScoringProfile.profile(for: ScoringProfile.defaultRulesetId)
+        let presets = rules.commonScorePresets()
+        for preset in presets {
+            #expect(
+                rules.canRepresentAsCommonScores(amount: preset.value),
+                "Preset \(preset.value) (\(preset.label)) should be representable"
+            )
+        }
     }
 }

@@ -17,6 +17,9 @@ struct PlayerRowView: View {
     let allPlayers: [Player]
     let isActive: Bool
     let onSelect: () -> Void
+    var onEdit: (() -> Void)?
+    var onRemove: (() -> Void)?
+    var canRemoveFromGame: Bool = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
@@ -24,7 +27,7 @@ struct PlayerRowView: View {
     @ScaledMetric(relativeTo: .caption) private var markerSize = AppTheme.activeMarkerSize
 
     private var avatarColor: Color {
-        AppTheme.avatarColor(index: index, contrast: contrast)
+        AppTheme.avatarColor(index: player.effectiveAvatarColorIndex(listIndex: index), contrast: contrast)
     }
 
     private var monogramText: String {
@@ -42,31 +45,63 @@ struct PlayerRowView: View {
     }
 
     var body: some View {
-        Button(action: onSelect) {
-            ViewThatFits(in: .horizontal) {
-                horizontalLayout
-                stackedLayout
-            }
+        HStack(spacing: 8) {
+            Button(action: onSelect) {
+                ViewThatFits(in: .horizontal) {
+                    horizontalLayout
+                    stackedLayout
+                }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
+            .farkleButtonHitArea()
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                     .fill(AppTheme.cardFill)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                    .stroke(
-                        isActive ? AppTheme.accentYellow(contrast) : AppTheme.stroke(contrast),
-                        lineWidth: isActive ? (contrast == .increased ? 3 : 2) : 1
-                    )
-            )
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .stroke(
+                            isActive ? AppTheme.accentYellow(contrast) : AppTheme.stroke(contrast),
+                            lineWidth: isActive ? (contrast == .increased ? 3 : 2) : 1
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityRowLabel)
+            .accessibilityValue(isActive ? "Active turn" : "")
+            .accessibilityHint("Selects this player as the active turn")
+            .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+
+            if isActive, let onEdit {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(AppTheme.accentYellow(contrast))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit \(player.name)")
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityRowLabel)
-        .accessibilityValue(isActive ? "Active turn" : "")
-        .accessibilityHint("Selects this player as the active turn")
-        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+        .contextMenu {
+            if let onEdit {
+                Button {
+                    onEdit()
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                }
+            }
+            if let onRemove {
+                Button(role: .destructive) {
+                    onRemove()
+                } label: {
+                    Label("Remove from game", systemImage: "minus.circle")
+                }
+                .disabled(!canRemoveFromGame)
+            }
+        }
     }
 
     private var horizontalLayout: some View {

@@ -15,6 +15,7 @@ struct Farkle_Score_App: App {
     @UIApplicationDelegateAdaptor(FarkleAppDelegate.self) private var appDelegate
 #endif
     @State private var gameStore: GameStore
+    @State private var profileStore: PlayerProfileStore
     @Environment(\.scenePhase) private var scenePhase
     private let persistence = GameStorePersistence.default
 
@@ -28,18 +29,28 @@ struct Farkle_Score_App: App {
             AppSettings.lastLocalPersistenceWrite = mtime
         }
         _gameStore = State(initialValue: store)
+        _profileStore = State(initialValue: PlayerProfileStore())
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(gameStore)
+                .environment(profileStore)
                 .task {
-                    await CloudSyncController.bootstrapAfterLaunch(store: gameStore, persistence: persistence)
+                    await CloudSyncController.bootstrapAfterLaunch(
+                        store: gameStore,
+                        profileStore: profileStore,
+                        persistence: persistence
+                    )
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .cloudKitRemoteRefresh)) { _ in
                     Task {
-                        await CloudSyncController.mergeFromRemoteNotification(store: gameStore, persistence: persistence)
+                        await CloudSyncController.mergeFromRemoteNotification(
+                            store: gameStore,
+                            profileStore: profileStore,
+                            persistence: persistence
+                        )
                     }
                 }
         }
@@ -57,7 +68,11 @@ struct Farkle_Score_App: App {
         .onChange(of: scenePhase) { _, phase in
             if phase == .background || phase == .inactive {
                 Task {
-                    await CloudSyncController.persistAndSync(store: gameStore, persistence: persistence)
+                    await CloudSyncController.persistAndSync(
+                        store: gameStore,
+                        profileStore: profileStore,
+                        persistence: persistence
+                    )
                 }
             }
         }

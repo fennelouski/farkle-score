@@ -229,3 +229,10 @@ enum AppTheme {
         return "\(formatScore(value)) \(unit)"
     }
 }
+
+extension View {
+    /// Expands hit testing to the view's laid-out bounds for `.plain` buttons (not just text/icons).
+    func farkleButtonHitArea(cornerRadius: CGFloat = AppTheme.cornerRadius) -> some View {
+        contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+    }
+}

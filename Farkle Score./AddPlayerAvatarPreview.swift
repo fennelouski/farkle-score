@@ -17,6 +17,9 @@ struct AddPlayerAvatarPreview: View {
     var newPlayerName: String
     var draftEmoji: String?
     var draftPhotoFileName: String?
+    var avatarColorIndex: Int?
+    /// When editing, pass the full roster with the edited row replaced for monogram disambiguation.
+    var extraRosterPlayers: [Player]?
 
     @Environment(\.colorSchemeContrast) private var contrast
     @ScaledMetric(relativeTo: .largeTitle) private var previewSize: CGFloat = 72
@@ -38,7 +41,8 @@ struct AddPlayerAvatarPreview: View {
     }
 
     private var rosterForMonogram: [Player] {
-        store.players + [draftPlayer]
+        if let extraRosterPlayers { return extraRosterPlayers }
+        return store.players + [draftPlayer]
     }
 
     private var monogramText: String {
@@ -46,8 +50,8 @@ struct AddPlayerAvatarPreview: View {
     }
 
     private var avatarColor: Color {
-        let idx = store.players.count % AppTheme.playerAvatarColors.count
-        return AppTheme.avatarColor(index: idx, contrast: contrast)
+        let idx = avatarColorIndex ?? store.players.count
+        return AppTheme.avatarColor(index: PlayerProfile.clampedColorIndex(idx), contrast: contrast)
     }
 
     var body: some View {
@@ -119,5 +123,42 @@ struct AddPlayerAvatarPreview: View {
                 .clipShape(Circle())
         }
 #endif
+    }
+}
+
+/// Large avatar preview with customize affordance for the player editor sheet.
+struct EditableAvatarPreview: View {
+    var store: GameStore
+    var draftPlayerId: UUID
+    var newPlayerName: String
+    var draftEmoji: String?
+    var draftPhotoFileName: String?
+    var avatarColorIndex: Int?
+    var extraRosterPlayers: [Player]?
+    var onCustomize: () -> Void
+
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        Button(action: onCustomize) {
+            ZStack(alignment: .bottomTrailing) {
+                AddPlayerAvatarPreview(
+                    store: store,
+                    draftPlayerId: draftPlayerId,
+                    newPlayerName: newPlayerName,
+                    draftEmoji: draftEmoji,
+                    draftPhotoFileName: draftPhotoFileName,
+                    avatarColorIndex: avatarColorIndex,
+                    extraRosterPlayers: extraRosterPlayers
+                )
+                Image(systemName: "pencil.circle.fill")
+                    .font(.title2)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, AppTheme.accentBlue(contrast))
+                    .offset(x: 4, y: 4)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Customize avatar")
     }
 }

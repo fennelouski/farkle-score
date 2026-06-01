@@ -53,7 +53,7 @@ struct GameStoreState: Codable, Equatable, Sendable {
 
 extension Player: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, name, score, avatarEmoji, avatarPhotoFileName
+        case id, name, score, avatarEmoji, avatarPhotoFileName, profileId, avatarColorIndex
     }
 
     public nonisolated init(from decoder: Decoder) throws {
@@ -63,7 +63,9 @@ extension Player: Codable {
             name: try c.decode(String.self, forKey: .name),
             score: try c.decode(Int.self, forKey: .score),
             avatarEmoji: try c.decodeIfPresent(String.self, forKey: .avatarEmoji).flatMap { Player.normalizedEmoji($0) },
-            avatarPhotoFileName: try c.decodeIfPresent(String.self, forKey: .avatarPhotoFileName)
+            avatarPhotoFileName: try c.decodeIfPresent(String.self, forKey: .avatarPhotoFileName),
+            profileId: try c.decodeIfPresent(UUID.self, forKey: .profileId),
+            avatarColorIndex: try c.decodeIfPresent(Int.self, forKey: .avatarColorIndex)
         )
     }
 
@@ -74,6 +76,36 @@ extension Player: Codable {
         try c.encode(score, forKey: .score)
         try c.encodeIfPresent(avatarEmoji, forKey: .avatarEmoji)
         try c.encodeIfPresent(avatarPhotoFileName, forKey: .avatarPhotoFileName)
+        try c.encodeIfPresent(profileId, forKey: .profileId)
+        try c.encodeIfPresent(avatarColorIndex, forKey: .avatarColorIndex)
+    }
+}
+
+extension PlayerProfile: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, avatarEmoji, avatarPhotoFileName, avatarColorIndex, modifiedAt
+    }
+
+    public nonisolated init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try c.decode(UUID.self, forKey: .id),
+            name: try c.decode(String.self, forKey: .name),
+            avatarEmoji: try c.decodeIfPresent(String.self, forKey: .avatarEmoji).flatMap { Player.normalizedEmoji($0) },
+            avatarPhotoFileName: try c.decodeIfPresent(String.self, forKey: .avatarPhotoFileName),
+            avatarColorIndex: try c.decodeIfPresent(Int.self, forKey: .avatarColorIndex) ?? 0,
+            modifiedAt: try c.decodeIfPresent(Date.self, forKey: .modifiedAt) ?? .now
+        )
+    }
+
+    public nonisolated func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(avatarEmoji, forKey: .avatarEmoji)
+        try c.encodeIfPresent(avatarPhotoFileName, forKey: .avatarPhotoFileName)
+        try c.encode(avatarColorIndex, forKey: .avatarColorIndex)
+        try c.encode(modifiedAt, forKey: .modifiedAt)
     }
 }
 

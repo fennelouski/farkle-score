@@ -70,8 +70,14 @@ struct ScoreInputView: View {
                 .accessibilityLabel("Dice preview")
                 .accessibilityAddTraits(.isHeader)
 
-            RollPreviewView(rules: scoringProfile) { value, label in
-                store.appendTurnEntry(value: value, label: label, kind: .combination)
+            RollPreviewView(rules: scoringProfile) { value, label, diceUsed, faceCounts in
+                store.appendTurnEntry(
+                    value: value,
+                    label: label,
+                    kind: .combination,
+                    diceCount: diceUsed,
+                    faceCounts: faceCounts
+                )
             }
             .padding(.top, 12)
         }
@@ -91,7 +97,7 @@ struct ScoreInputView: View {
             inputDisplay
 
             TurnScoreBreakdownView(
-                entries: store.singleChipEntries,
+                entries: store.repeatableChipEntries,
                 onRemove: { store.removeTurnEntry(id: $0) }
             )
 
@@ -142,7 +148,8 @@ struct ScoreInputView: View {
             CommonScoreGridView(
                 presets: scoringProfile.commonScorePresets(),
                 profile: scoringProfile,
-                singleChipEntries: store.singleChipEntries
+                turnEntries: store.turnEntries,
+                canAppend: { store.canAppendTurnEntry(preset: $0, profile: scoringProfile) }
             ) { preset in
                 store.appendTurnEntry(preset: preset, profile: scoringProfile)
             }

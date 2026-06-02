@@ -11,7 +11,7 @@ import UIKit
 
 struct RollPreviewView: View {
     let rules: ScoringProfile
-    var onUseScore: (Int, String) -> Void
+    var onUseScore: (Int, String, Int, [Int]) -> Void
 
     @State private var faces: [Int?] = Array(repeating: nil, count: 6)
     @Environment(\.colorSchemeContrast) private var contrast
@@ -34,7 +34,12 @@ struct RollPreviewView: View {
             HStack(spacing: 10) {
                 Button {
                     previewHaptic()
-                    onUseScore(summary.maxPoints, dicePreviewEntryLabel)
+                    onUseScore(
+                        summary.maxPoints,
+                        dicePreviewEntryLabel,
+                        summary.diceUsed,
+                        faceCountsForRoll
+                    )
                 } label: {
                     Label("USE SCORE", systemImage: "arrow.down.to.line.compact")
                         .font(.subheadline.weight(.bold))
@@ -130,6 +135,12 @@ struct RollPreviewView: View {
         .accessibilityHint("Cycles this die through faces one through six, then empty")
     }
 
+    private var faceCountsForRoll: [Int] {
+        let setFaces = faces.compactMap { $0 }
+        guard !setFaces.isEmpty else { return Array(repeating: 0, count: 6) }
+        return FarkleScoringEngine.makeCounts(from: setFaces)
+    }
+
     private var dicePreviewEntryLabel: String {
         if summary.diceUsed == 0 {
             return "Dice preview"
@@ -192,7 +203,7 @@ struct RollPreviewView: View {
 }
 
 #Preview {
-    RollPreviewView(rules: ScoringProfile.profile(for: ScoringProfile.defaultRulesetId), onUseScore: { _, _ in })
+    RollPreviewView(rules: ScoringProfile.profile(for: ScoringProfile.defaultRulesetId), onUseScore: { _, _, _, _ in })
         .padding()
         .background(AppTheme.background)
 }

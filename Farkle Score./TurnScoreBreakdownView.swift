@@ -22,7 +22,7 @@ struct TurnScoreBreakdownView: View {
                 .padding(.vertical, 2)
             }
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Selected singles")
+            .accessibilityLabel("Selected score chips")
         }
     }
 
@@ -67,9 +67,9 @@ struct TurnScoreBreakdownView: View {
 #Preview {
     TurnScoreBreakdownView(
         entries: [
-            TurnScoreEntry(value: 100, label: "Single 1", kind: .singleChip),
-            TurnScoreEntry(value: 100, label: "Single 1", kind: .singleChip),
-            TurnScoreEntry(value: 50, label: "Single 5", kind: .singleChip),
+            TurnScoreEntry(value: 100, label: "Single 1", kind: .singleChip, diceCount: 1),
+            TurnScoreEntry(value: 100, label: "Single 1", kind: .singleChip, diceCount: 1),
+            TurnScoreEntry(value: 50, label: "Single 5", kind: .singleChip, diceCount: 1),
         ],
         onRemove: { _ in }
     )

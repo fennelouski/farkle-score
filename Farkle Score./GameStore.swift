@@ -78,6 +78,10 @@ final class GameStore {
         turnEntries.filter { $0.kind == .singleChip }
     }
 
+    var repeatableChipEntries: [TurnScoreEntry] {
+        turnEntries.filter { $0.kind == .singleChip || $0.kind == .tripleChip }
+    }
+
     var resolvedTurnAmount: Int {
         if isTurnBuilderActive {
             turnEntries.reduce(0) { $0 + $1.value }
@@ -86,18 +90,71 @@ final class GameStore {
         }
     }
 
-    func appendTurnEntry(preset: CommonScorePreset, profile: ScoringProfile) {
-        let kind: TurnScoreEntryKind = profile.isRepeatableSingle(preset: preset) ? .singleChip : .combination
-        appendTurnEntry(value: preset.value, label: preset.label, kind: kind)
+    func canAppendTurnEntry(preset: CommonScorePreset, profile: ScoringProfile) -> Bool {
+        TurnEntryLimits.canAppend(preset: preset, profile: profile, existingEntries: turnEntries)
     }
 
-    func appendTurnEntry(value: Int, label: String, kind: TurnScoreEntryKind) {
+    func canAppendTurnEntry(diceCount: Int, label: String, faceCounts: [Int], isTriple: Bool = false, maxPerLabel: Int = 1) -> Bool {
+        TurnEntryLimits.canAppend(
+            diceCount: diceCount,
+            faceCounts: faceCounts,
+            label: label,
+            isTriple: isTriple,
+            maxPerLabel: maxPerLabel,
+            existingEntries: turnEntries
+        )
+    }
+
+    func appendTurnEntry(preset: CommonScorePreset, profile: ScoringProfile) {
+        guard canAppendTurnEntry(preset: preset, profile: profile) else { return }
+        let meta = profile.presetDiceMetadata(for: preset)
+        appendTurnEntry(
+            value: preset.value,
+            label: preset.label,
+            kind: profile.turnEntryKind(for: preset),
+            diceCount: meta.diceCost,
+            faceCounts: meta.faceCounts
+        )
+    }
+
+    func appendTurnEntry(
+        value: Int,
+        label: String,
+        kind: TurnScoreEntryKind,
+        diceCount: Int,
+        faceCounts: [Int]? = nil
+    ) {
         guard value > 0 else { return }
+        let resolvedFaceCounts = faceCounts ?? TurnEntryLabel.faceCounts(forLabel: label)
+        let isTriple = TurnEntryLabel.isTriple(label)
+        let maxPerLabel: Int
+        if kind == .singleChip {
+            maxPerLabel = 6
+        } else if isTriple {
+            maxPerLabel = 6
+        } else {
+            maxPerLabel = 1
+        }
+        guard canAppendTurnEntry(
+            diceCount: diceCount,
+            label: label,
+            faceCounts: resolvedFaceCounts,
+            isTriple: isTriple,
+            maxPerLabel: maxPerLabel
+        ) else { return }
         currentInput = ""
         let running = turnEntries.reduce(0) { $0 + $1.value }
         let nextTotal = running + value
         guard String(nextTotal).count <= Self.maxInputDigits else { return }
-        turnEntries.append(TurnScoreEntry(value: value, label: label, kind: kind))
+        turnEntries.append(
+            TurnScoreEntry(
+                value: value,
+                label: label,
+                kind: kind,
+                diceCount: diceCount,
+                faceCounts: resolvedFaceCounts
+            )
+        )
     }
 
     func removeTurnEntry(id: UUID) {

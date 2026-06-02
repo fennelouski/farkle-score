@@ -573,6 +573,13 @@ struct PlayerMonogramTests {
         #expect(fallback.effectiveAvatarColorIndex(listIndex: 3) == 3)
     }
 
+    @Test func playerAvatarPaletteCountMatchesClamping() {
+        #expect(AppTheme.playerAvatarColors.count == AppTheme.playerAvatarColorsHighContrast.count)
+        #expect(AppTheme.playerAvatarColors.count == PlayerProfile.avatarColorCount)
+        #expect(PlayerProfile.clampedColorIndex(99) == 99 % PlayerProfile.avatarColorCount)
+        #expect(PlayerProfile.clampedColorIndex(-1) == PlayerProfile.avatarColorCount - 1)
+    }
+
     @Test func normalizedEmojiExtractsFirstEmoji() {
         #expect(Player.normalizedEmoji("hi🎲there") == "🎲")
         #expect(Player.normalizedEmoji("nope") == nil)
@@ -848,6 +855,9 @@ struct TurnScoreBuilderTests {
         #expect(profile.isRepeatableSingle(preset: single1))
         #expect(profile.isRepeatableSingle(preset: single5))
         #expect(!profile.isRepeatableSingle(preset: three6))
+        #expect(profile.isRepeatableChip(preset: single1))
+        #expect(profile.isRepeatableChip(preset: three6))
+        #expect(profile.isTriplePreset(preset: three6))
     }
 
     @Test func build850WithChipsAndCombo() {
@@ -893,6 +903,9 @@ struct TurnScoreBuilderTests {
         let profile = cardgamesProfile
         store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
         #expect(store.singleChipEntries.isEmpty)
+        #expect(store.repeatableChipEntries.count == 1)
+        #expect(store.turnEntries.first?.kind == .tripleChip)
+        #expect(store.turnEntries.first?.diceCount == 3)
         #expect(store.resolvedTurnAmount == 600)
     }
 
@@ -928,6 +941,166 @@ struct TurnScoreBuilderTests {
         store.selectPlayer(at: 1)
         #expect(store.turnEntries.isEmpty)
         #expect(store.activePlayerIndex == 1)
+    }
+
+    @Test func singleChipMaxSixPerLabel() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        let single1 = preset(label: "Single 1", in: profile)
+        for _ in 0 ..< 6 {
+            #expect(store.canAppendTurnEntry(preset: single1, profile: profile))
+            store.appendTurnEntry(preset: single1, profile: profile)
+        }
+        #expect(store.turnEntries.count == 6)
+        #expect(!store.canAppendTurnEntry(preset: single1, profile: profile))
+        store.appendTurnEntry(preset: single1, profile: profile)
+        #expect(store.turnEntries.count == 6)
+    }
+
+    @Test func tripleChipsMaxTwoTotal() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        let three6 = preset(label: "Three 6s", in: profile)
+        let three1 = preset(label: "Three 1s", in: profile)
+        store.appendTurnEntry(preset: three6, profile: profile)
+        store.appendTurnEntry(preset: three1, profile: profile)
+        #expect(store.turnEntries.count == 2)
+        #expect(TurnEntryLimits.totalDice(in: store.turnEntries) == 6)
+        #expect(!store.canAppendTurnEntry(preset: three6, profile: profile))
+        store.appendTurnEntry(preset: three6, profile: profile)
+        #expect(store.turnEntries.count == 2)
+    }
+
+    @Test func tripleOnesAllowsSingleOnesOnSameFace() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        let three1 = preset(label: "Three 1s", in: profile)
+        let single1 = preset(label: "Single 1", in: profile)
+        store.appendTurnEntry(preset: three1, profile: profile)
+        #expect(store.canAppendTurnEntry(preset: single1, profile: profile))
+        for _ in 0 ..< 3 {
+            store.appendTurnEntry(preset: single1, profile: profile)
+        }
+        #expect(store.turnEntries.count == 4)
+        #expect(TurnEntryLimits.combinedFaceCounts(in: store.turnEntries)[0] == 6)
+        #expect(store.resolvedTurnAmount == 1_300)
+        #expect(!store.canAppendTurnEntry(preset: single1, profile: profile))
+    }
+
+    @Test func tripleFivesAllowsSingleFivesOnSameFace() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Three 5s", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Single 5", in: profile), profile: profile)
+        #expect(TurnEntryLimits.combinedFaceCounts(in: store.turnEntries)[4] == 6)
+        #expect(store.resolvedTurnAmount == 650)
+    }
+
+    @Test func diceBudgetBlocksSeventhDie() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        #expect(store.turnEntries.count == 2)
+        let single1 = preset(label: "Single 1", in: profile)
+        #expect(!store.canAppendTurnEntry(preset: single1, profile: profile))
+        store.appendTurnEntry(preset: single1, profile: profile)
+        #expect(store.turnEntries.count == 2)
+    }
+
+    @Test func straightUsesFullDiceBudget() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        let straight = preset(label: "Straight 1–6", in: profile)
+        store.appendTurnEntry(preset: straight, profile: profile)
+        #expect(store.turnEntries.count == 1)
+        #expect(store.turnEntries.first?.diceCount == 6)
+        let single5 = preset(label: "Single 5", in: profile)
+        #expect(!store.canAppendTurnEntry(preset: single5, profile: profile))
+        store.appendTurnEntry(preset: single5, profile: profile)
+        #expect(store.turnEntries.count == 1)
+    }
+
+    @Test func dicePreviewRespectsDiceBudget() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
+        store.appendTurnEntry(preset: preset(label: "Three 1s", in: profile), profile: profile)
+        let previewFaces = [0, 0, 0, 0, 2, 2]
+        #expect(!store.canAppendTurnEntry(
+            diceCount: 4,
+            label: "Dice preview (500)",
+            faceCounts: previewFaces,
+            isTriple: false,
+            maxPerLabel: 1
+        ))
+        store.appendTurnEntry(
+            value: 500,
+            label: "Dice preview (500)",
+            kind: .combination,
+            diceCount: 4,
+            faceCounts: previewFaces
+        )
+        #expect(store.turnEntries.count == 2)
+    }
+
+    @Test func dicePreviewAppendSucceedsWithinBudget() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let threeTwos = [0, 3, 0, 0, 0, 0]
+        store.appendTurnEntry(
+            value: 300,
+            label: "Dice preview (300)",
+            kind: .combination,
+            diceCount: 3,
+            faceCounts: threeTwos
+        )
+        #expect(store.turnEntries.count == 1)
+        let threeThrees = [0, 0, 3, 0, 0, 0]
+        store.appendTurnEntry(
+            value: 200,
+            label: "Dice preview (200)",
+            kind: .combination,
+            diceCount: 3,
+            faceCounts: threeThrees
+        )
+        #expect(store.turnEntries.count == 2)
+        #expect(TurnEntryLimits.totalDice(in: store.turnEntries) == 6)
+    }
+
+    @Test func dicePreviewRejectsDuplicateLabel() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let threeTwos = [0, 3, 0, 0, 0, 0]
+        store.appendTurnEntry(
+            value: 300,
+            label: "Dice preview (300)",
+            kind: .combination,
+            diceCount: 3,
+            faceCounts: threeTwos
+        )
+        store.appendTurnEntry(
+            value: 300,
+            label: "Dice preview (300)",
+            kind: .combination,
+            diceCount: 3,
+            faceCounts: threeTwos
+        )
+        #expect(store.turnEntries.count == 1)
+    }
+
+    @Test func dicePreviewRespectsPerFaceLimit() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        let profile = cardgamesProfile
+        store.appendTurnEntry(preset: preset(label: "Three 1s", in: profile), profile: profile)
+        let fourOnes = [4, 0, 0, 0, 0, 0]
+        #expect(!store.canAppendTurnEntry(
+            diceCount: 4,
+            label: "Dice preview (1,000)",
+            faceCounts: fourOnes,
+            isTriple: false,
+            maxPerLabel: 1
+        ))
     }
 }
 

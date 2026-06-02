@@ -8,7 +8,8 @@ import SwiftUI
 struct CommonScoreGridView: View {
     let presets: [CommonScorePreset]
     let profile: ScoringProfile
-    let singleChipEntries: [TurnScoreEntry]
+    let turnEntries: [TurnScoreEntry]
+    let canAppend: (CommonScorePreset) -> Bool
     var onSelect: (CommonScorePreset) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -22,7 +23,9 @@ struct CommonScoreGridView: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(presets) { preset in
+                let appendable = canAppend(preset)
                 Button {
+                    guard appendable else { return }
                     presetHaptic()
                     onSelect(preset)
                 } label: {
@@ -69,17 +72,19 @@ struct CommonScoreGridView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .disabled(!appendable)
+                .opacity(appendable ? 1 : 0.45)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityLabel(for: preset))
-                .accessibilityHint(accessibilityHint(for: preset))
+                .accessibilityHint(accessibilityHint(for: preset, appendable: appendable))
                 .accessibilityAddTraits(.isButton)
             }
         }
     }
 
     private func selectionCount(for preset: CommonScorePreset) -> Int? {
-        guard profile.isRepeatableSingle(preset: preset) else { return nil }
-        let count = singleChipEntries.filter { $0.value == preset.value }.count
+        guard profile.isRepeatableChip(preset: preset) else { return nil }
+        let count = turnEntries.filter { $0.label == preset.label }.count
         return count > 0 ? count : nil
     }
 
@@ -91,9 +96,13 @@ struct CommonScoreGridView: View {
         return label
     }
 
-    private func accessibilityHint(for preset: CommonScorePreset) -> String {
+    private func accessibilityHint(for preset: CommonScorePreset, appendable: Bool) -> String {
+        guard appendable else { return "Maximum reached for this turn" }
         if profile.isRepeatableSingle(preset: preset) {
             return "Adds another single to the current turn"
+        }
+        if profile.isTriplePreset(preset: preset) {
+            return "Adds another three of a kind to the current turn"
         }
         return "Adds this combination to the current turn"
     }
@@ -108,9 +117,10 @@ struct CommonScoreGridView: View {
     CommonScoreGridView(
         presets: profile.commonScorePresets(),
         profile: profile,
-        singleChipEntries: [
-            TurnScoreEntry(value: 100, label: "Single 1", kind: .singleChip),
+        turnEntries: [
+            TurnScoreEntry(value: 100, label: "Single 1", kind: .singleChip, diceCount: 1),
         ],
+        canAppend: { _ in true },
         onSelect: { _ in }
     )
     .padding()

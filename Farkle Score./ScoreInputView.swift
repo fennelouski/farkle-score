@@ -213,7 +213,7 @@ struct ScoreInputView: View {
         if scoringPayload.useCustomScoring {
             return "Custom"
         }
-        return RulesLibrary.metadata(id: scoringPayload.templateRulesetId)?.title ?? scoringPayload.templateRulesetId
+        return RulesLibrary.metadata(id: scoringPayload.templateRulesetId)?.localizedTitle ?? scoringPayload.templateRulesetId
     }
 
     private var commonScoresColumn: some View {

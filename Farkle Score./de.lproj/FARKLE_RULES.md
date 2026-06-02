@@ -1,6 +1,6 @@
 # Wie man Farkle spielt
 
-Referenzzusammenfassung angepasst von [Cardgames.io – How to play Farkle](https://cardgames.io/blog/how-to-play-farkle/). Farkle wird in vielen regionalen Varianten gespielt; Dies beschreibt den einfacheren Regelsatz, der auf dieser Site verwendet wird.
+Zusammenfassung nach [Cardgames.io – How to play Farkle](https://cardgames.io/blog/how-to-play-farkle/). Farkle wird in vielen regionalen Varianten gespielt; hier wird der einfachere Regelsatz dieser Seite beschrieben.
 
 ## Ziel
 
@@ -10,11 +10,11 @@ Seien Sie der erste Spieler, der **mehr als 10.000 Punkte sammelt**. Die Züge w
 
 Sechs Standardwürfel.
 
-## Turn-Flow: Rollen, Punkte, Bank
+## Zugablauf: Würfeln, punkten, sichern
 
 1. **Wirf** zu Beginn deines Zuges alle sechs Würfel.
 2. Nach jedem Wurf werden die Würfel **beiseite gelegt**, die Wertungskombinationen bilden (siehe unten). Sie müssen bei jedem Wurf **mindestens einen** Wertungswürfel beiseite legen; Darüber hinaus entscheidet man, welche Wertungswürfel man behält und welche man erneut würfelt.
-3. **Wirf alle Würfel noch einmal, die du nicht beiseite gelegt hast, um weitere Meldungen zu erhalten – oder **lege**, um deine Rundensumme zu deinem permanenten Punktestand hinzuzufügen und deinen Zug zu beenden. Gesammelte Punkte können nicht verloren gehen.
+3. **Würfle** alle nicht beiseitegelegten Würfel erneut, um weitere Kombinationen zu erzielen – oder **banke**, um die Rundensumme deinem Gesamtscore hinzuzufügen und den Zug zu beenden. Gebankte Punkte können nicht verloren gehen.
 4. Geben Sie die Würfel an Ihren Gegner weiter. Sie sind an der Reihe.
 
 ### Meldungen erfolgen nur pro Wurf
@@ -25,7 +25,7 @@ Beispiel: Du würfelst zwei Einsen und legst sie beiseite (100 + 100 = **200**).
 
 ## Farkle
 
-Wenn nach einem Wurf **kein Würfel** Teil einer Wertungsmeldung sein kann, **farkle** du. Ihr Zug endet sofort, Sie **verlieren alle nicht gespeicherten Punkte** aus dieser Runde und das Spiel geht an Ihren Gegner über. Jeder zusätzliche Wiederholungswurf erhöht das Farkle-Risiko.
+Wenn nach einem Wurf **kein Würfel** Teil einer wertenden Kombination sein kann, machst du **Farkle**. Dein Zug endet sofort, du **verlierst alle nicht gebankten Punkte** dieser Runde, und das Spiel geht an den Gegner. Jeder zusätzliche Wurf erhöht das Farkle-Risiko.
 
 ## Heiße Würfel
 
@@ -35,9 +35,9 @@ Wenn **jeder Würfel**, den du gerade gewürfelt hast, in Meldungen verwendet we
 
 Das Spiel endet, wenn ein Spieler **eine Runde** mit **mehr als 10.000 gesammelten Punkten** beendet. Sie sind nicht gezwungen, Geld zu sparen, sobald Sie gewinnen könnten; Sie können weiter würfeln, wenn die Tabelle es zulässt – aber das übliche Ziel ist es, auf den Sieg zu setzen.
 
-## Wertende Meldungen
+## Wertende Kombinationen
 
-| Melden | Punkte |
+| Kombination | Punkte |
 |------|--------|
 | Jeweils **1** | 100 |
 | Jeweils **5** | 50 |

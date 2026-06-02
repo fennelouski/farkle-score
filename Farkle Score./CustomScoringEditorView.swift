@@ -18,7 +18,7 @@ struct CustomScoringEditorView: View {
     }
 
     private var templateTitle: String {
-        RulesLibrary.metadata(id: draft.templateRulesetId)?.title ?? draft.templateRulesetId
+        RulesLibrary.metadata(id: draft.templateRulesetId)?.localizedTitle ?? draft.templateRulesetId
     }
 
     var body: some View {

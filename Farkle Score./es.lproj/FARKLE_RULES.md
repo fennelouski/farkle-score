@@ -10,22 +10,22 @@ Sé el primer jugador en **acumular más de 10,000 puntos**. Los turnos se alter
 
 Seis dados estándar.
 
-## Flujo de giro: rodar, anotar, ladear
+## Flujo del turno: tirar, puntuar y plantar
 
 1. **Tira** los seis dados al comienzo de tu turno.
 2. Después de cada tirada, **reserva** los dados que formen combinaciones de puntuación (ver más abajo). Debes reservar **al menos un** dado de puntuación en cada tirada; más allá de eso, eliges qué dados de puntuación conservar y cuáles volver a tirar.
 3. **Vuelve a tirar** los dados que no hayas reservado para intentar obtener más combinaciones, o **acumula** para sumar el total de tu ronda a tu puntuación permanente y finalizar tu turno. Los puntos acumulados no se pueden perder.
 4. Pasa los dados a tu oponente; comienza su turno.
 
-### Las fusiones son solo por lanzamiento
+### Las combinaciones cuentan solo por tirada
 
-Se derrite **no se transfiere** entre rollos. Los dados anotados en lanzamientos separados son combinaciones separadas.
+Las combinaciones **no se transfieren** entre tiradas. Los dados puntuados en tiradas separadas son combinaciones distintas.
 
-Ejemplo: sacas dos 1 y los dejas a un lado (100 + 100 = **200**). En el siguiente lanzamiento, lanzas otro 1. Eso es **no** tres 1 por 1000; las tres caras deben aparecer en el **mismo** lanzamiento. Mantienes un 1 separado por valor de **100**, para un total de **300** de esos dados, no una combinación de unos triples.
+Ejemplo: tiras dos 1 y los apartas (100 + 100 = **200**). En la siguiente tirada obtienes otro 1. Eso **no** son tres 1 por 1.000; las tres caras deben salir en la **misma** tirada. Ese último 1 vale **100** por separado, para un total de **300**, no una combinación de triple 1.
 
 ## Farkle
 
-Si, después de una tirada, **ningún dado** puede ser parte de una combinación de puntuación, **farkle**. Tu turno termina inmediatamente, **pierdes todos los puntos no acumulados** de esa ronda y el juego pasa a tu oponente. Cada repetición adicional aumenta el riesgo de Farkle.
+Si, tras una tirada, **ningún dado** puede formar parte de una combinación con puntos, haces **farkle**. Tu turno termina de inmediato, **pierdes todos los puntos no bancados** de esa ronda y el turno pasa a tu oponente. Cada relanzamiento adicional aumenta el riesgo de farkle.
 
 ## Dados calientes
 
@@ -33,11 +33,11 @@ Si **cada dado** que acabas de tirar se puede usar en combinaciones (los seis da
 
 ## Fin del juego
 
-El juego termina cuando un jugador **termina un turno** con **más de 10,000 puntos acumulados**. No está obligado a realizar operaciones bancarias tan pronto como pueda ganar; puedes seguir tirando si la mesa lo permite, pero el objetivo habitual es apostar para ganar.
+La partida termina cuando un jugador **termina su turno** con **más de 10.000 puntos bancados**. No estás obligado a plantarte en cuanto puedas ganar; puedes seguir tirando si la mesa lo permite, pero lo habitual es plantarse para asegurar la victoria.
 
 ## Combinaciones de puntuación
 
-| Meld | Puntos |
+| Combinación | Puntos |
 |------|--------|
 | Cada **1** | 100 |
 | Cada **5** | 50 |

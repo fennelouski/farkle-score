@@ -80,7 +80,7 @@ struct PlayerEditorSheet: View {
                         avatarEmoji: $draftEmoji,
                         avatarPhotoFileName: $draftPhotoFileName
                     )
-                    .farkleSheetChrome()
+                    .farkleSheetChrome(detents: [.medium])
                 }
                 .confirmationDialog(
                     "Remove this player from the current game?",

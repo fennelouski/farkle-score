@@ -31,6 +31,7 @@ struct RulesDetailView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .farkleScreenBackground()
         .navigationTitle(metadata.title)
 #if os(iOS)
@@ -73,6 +74,7 @@ struct RulesDetailView: View {
                                             .fixedSize(horizontal: false, vertical: true)
                                             .padding(.horizontal, 12)
                                             .padding(.vertical, 8)
+                                            .farkleButtonHitArea(cornerRadius: 20)
                                             .background(AppTheme.cardFill)
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 20)
@@ -99,9 +101,11 @@ struct RulesDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
                 }
             }
+            .farkleVerticalSafeAreaFade()
             .safeAreaPadding(.horizontal, 16)
             .safeAreaPadding(.vertical, 12)
-            .farkleScreenBackground()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -19,7 +19,10 @@ extension GameStore {
             players: players,
             activePlayerIndex: activePlayerIndex,
             history: history,
-            autoAdvanceAfterScore: autoAdvanceAfterScore
+            autoAdvanceAfterScore: autoAdvanceAfterScore,
+            gamePhase: gamePhase,
+            finalRoundPendingPlayerIDs: finalRoundPendingPlayerIDs,
+            finalRoundTriggerPlayerID: finalRoundTriggerPlayerID
         )
     }
 
@@ -33,6 +36,9 @@ extension GameStore {
         activePlayerIndex = min(max(0, state.activePlayerIndex), upper)
         history = state.history
         autoAdvanceAfterScore = state.autoAdvanceAfterScore
+        gamePhase = state.gamePhase
+        finalRoundPendingPlayerIDs = state.finalRoundPendingPlayerIDs
+        finalRoundTriggerPlayerID = state.finalRoundTriggerPlayerID
         clearInput()
     }
 }

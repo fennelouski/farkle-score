@@ -11,7 +11,7 @@ struct PlayerProfile: Identifiable, Equatable, Sendable {
     var name: String
     var avatarEmoji: String?
     var avatarPhotoFileName: String?
-    /// Index into `AppTheme.playerAvatarColors` (0..<6).
+    /// Index into `AppTheme.playerAvatarColors` (0..<`avatarColorCount`).
     var avatarColorIndex: Int
     var modifiedAt: Date
 
@@ -31,8 +31,11 @@ struct PlayerProfile: Identifiable, Equatable, Sendable {
         self.modifiedAt = modifiedAt
     }
 
+    /// Must match `AppTheme.playerAvatarColors.count` (verified in unit tests).
+    nonisolated static let avatarColorCount = 10
+
     nonisolated static func clampedColorIndex(_ index: Int) -> Int {
-        let count = 6
+        let count = avatarColorCount
         guard count > 0 else { return 0 }
         return ((index % count) + count) % count
     }

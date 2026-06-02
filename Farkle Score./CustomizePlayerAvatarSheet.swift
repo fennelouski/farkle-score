@@ -34,100 +34,25 @@ struct CustomizePlayerAvatarSheet: View {
         "🎲", "🎯", "⭐", "🏆", "🔥", "💎", "🍀", "🎪", "🦄", "🐉", "🦋", "🌙", "⚡️", "🎸", "🍕",
     ]
 
+    private static let quickPicksRowInsets = EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
+    private static let optionRowInsets = EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20)
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(Self.quickPickEmojis, id: \.self) { em in
-                                Button {
-                                    selectEmoji(em)
-                                } label: {
-                                    Text(em)
-                                        .font(.system(size: 36))
-                                        .frame(width: 52, height: 52)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10)
-                                                .fill(AppTheme.cardFill)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 10)
-                                                        .stroke(
-                                                            avatarEmoji == em
-                                                                ? AppTheme.accentYellow(contrast)
-                                                                : AppTheme.stroke(contrast),
-                                                            lineWidth: avatarEmoji == em ? 2 : 1
-                                                        )
-                                                )
-                                        )
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel("Emoji \(em)")
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                } header: {
-                    Text("Quick picks")
-                }
-
-                Section {
-                    Button {
-                        showEmojiEntrySheet = true
-                    } label: {
-                        Label("Choose any emoji…", systemImage: "face.smiling")
-                    }
-
-                    PhotosPicker(
-                        selection: $photoPickerItem,
-                        matching: .images,
-                        photoLibrary: .shared()
-                    ) {
-                        Label("Choose from photo library…", systemImage: "photo.on.rectangle.angled")
-                    }
-                    .onChange(of: photoPickerItem) { _, item in
-                        Task { await loadPhoto(from: item) }
-                    }
-
-                    Button {
-                        showWebImagePicker = true
-                    } label: {
-                        Label("Choose from website…", systemImage: "globe")
-                    }
-
+            avatarForm
+                .navigationTitle("Customize avatar")
 #if os(iOS)
-                    if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                        Button {
-                            showCameraNotice = true
-                        } label: {
-                            Label("Take a photo…", systemImage: "camera.fill")
-                        }
-                    }
+                .navigationBarTitleDisplayMode(.inline)
 #endif
-                } header: {
-                    Text("More options")
-                } footer: {
-                    Text("Photo library, camera, and website picker are only used when you choose them here.")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.muted(contrast))
-                }
-
-                Section {
-                    Button("Use initials instead", role: .destructive) {
-                        resetToMonogram()
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
                     }
                 }
-            }
-            .navigationTitle("Customize avatar")
-#if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-#endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
         }
+#if os(macOS)
+        .frame(minWidth: 480, minHeight: 380)
+#endif
         .sheet(isPresented: $showEmojiEntrySheet) {
             emojiEntrySheet
         }
@@ -154,6 +79,108 @@ struct CustomizePlayerAvatarSheet: View {
                 await MainActor.run { cameraImage = nil }
             }
         }
+#endif
+    }
+
+    private var avatarForm: some View {
+        Form {
+            Section {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(Self.quickPickEmojis, id: \.self) { em in
+                            Button {
+                                selectEmoji(em)
+                            } label: {
+                                Text(em)
+                                    .font(.system(size: 36))
+                                    .frame(width: 52, height: 52)
+                                    .farkleButtonHitArea(cornerRadius: 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .fill(AppTheme.cardFill)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(
+                                                        avatarEmoji == em
+                                                            ? AppTheme.accentYellow(contrast)
+                                                            : AppTheme.stroke(contrast),
+                                                        lineWidth: avatarEmoji == em ? 2 : 1
+                                                    )
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Emoji \(em)")
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 4)
+                }
+                .listRowInsets(Self.quickPicksRowInsets)
+            } header: {
+                Text("Quick picks")
+            }
+
+            Section {
+                Button {
+                    showEmojiEntrySheet = true
+                } label: {
+                    Label("Choose any emoji…", systemImage: "face.smiling")
+                }
+                .listRowInsets(Self.optionRowInsets)
+
+                PhotosPicker(
+                    selection: $photoPickerItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Label("Choose from photo library…", systemImage: "photo.on.rectangle.angled")
+                }
+                .onChange(of: photoPickerItem) { _, item in
+                    Task { await loadPhoto(from: item) }
+                }
+                .listRowInsets(Self.optionRowInsets)
+
+                Button {
+                    showWebImagePicker = true
+                } label: {
+                    Label("Choose from website…", systemImage: "globe")
+                }
+                .listRowInsets(Self.optionRowInsets)
+
+#if os(iOS)
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button {
+                        showCameraNotice = true
+                    } label: {
+                        Label("Take a photo…", systemImage: "camera.fill")
+                    }
+                    .listRowInsets(Self.optionRowInsets)
+                }
+#endif
+
+                Button {
+                    resetToMonogram()
+                } label: {
+                    Label("Use initials instead", systemImage: "person.crop.circle")
+                }
+                .listRowInsets(Self.optionRowInsets)
+            } header: {
+                Text("More options")
+            } footer: {
+                Text("Photo library, camera, and website picker are only used when you choose them here.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.muted(contrast))
+                    .padding(.top, 4)
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(AppTheme.background)
+#if os(macOS)
+        .formStyle(.grouped)
+        .fixedSize(horizontal: false, vertical: true)
+#else
+        .listSectionSpacing(.compact)
 #endif
     }
 

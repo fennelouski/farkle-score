@@ -30,6 +30,10 @@ struct ScoreInputView: View {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
     }
 
+    private var scoringDisabled: Bool {
+        store.gamePhase == .finished
+    }
+
     private var activePlayerAccentColor: Color {
         guard let player = store.activePlayer else {
             return AppTheme.primaryGreen(contrast)
@@ -46,6 +50,8 @@ struct ScoreInputView: View {
                 dicePreviewSection
             }
         }
+        .disabled(scoringDisabled)
+        .opacity(scoringDisabled ? 0.5 : 1)
         .overlay {
             if showUnusualScoreConfirmation, let amount = pendingUnusualAmount {
                 unusualScoreOverlay(amount: amount)
@@ -282,6 +288,7 @@ struct ScoreInputView: View {
     }
 
     private func requestAddToScore() {
+        guard !scoringDisabled else { return }
         let amount = store.resolvedTurnAmount
         if amount != 0, !store.isTurnBuilderActive, !scoringProfile.canRepresentAsCommonScores(amount: amount) {
             pendingUnusualAmount = amount

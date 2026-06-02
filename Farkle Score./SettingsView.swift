@@ -53,6 +53,7 @@ struct SettingsView: View {
                     }
                 }
         }
+        .farkleVerticalSafeAreaFade()
 #if os(iOS)
         .farkleSheetChrome()
 #endif
@@ -61,7 +62,7 @@ struct SettingsView: View {
 #endif
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
-                .farkleSheetChrome(detents: [.large])
+                .farkleRulesSheet()
         }
         .sheet(isPresented: $showCustomScoringEditor) {
             CustomScoringEditorView(payload: scoringPayload) { new in

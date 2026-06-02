@@ -9,29 +9,43 @@ struct PlayerAvatarColorPicker: View {
     @Binding var selectedIndex: Int
     @Environment(\.colorSchemeContrast) private var contrast
 
+    private static let swatchSize: CGFloat = 36
+    private static let selectionRingSize: CGFloat = 42
+
     var body: some View {
-        HStack(spacing: 12) {
-            ForEach(0..<AppTheme.playerAvatarColors.count, id: \.self) { idx in
-                Button {
-                    selectedIndex = idx
-                } label: {
-                    Circle()
-                        .fill(AppTheme.avatarColor(index: idx, contrast: contrast))
-                        .frame(width: 36, height: 36)
-                        .overlay {
-                            if selectedIndex == idx {
-                                Circle()
-                                    .stroke(AppTheme.accentYellow(contrast), lineWidth: contrast == .increased ? 3 : 2)
-                                    .frame(width: 42, height: 42)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(0..<AppTheme.playerAvatarColors.count, id: \.self) { idx in
+                    Button {
+                        selectedIndex = idx
+                    } label: {
+                        Circle()
+                            .fill(AppTheme.avatarColor(index: idx, contrast: contrast))
+                            .frame(width: Self.swatchSize, height: Self.swatchSize)
+                            .overlay {
+                                if selectedIndex == idx {
+                                    Circle()
+                                        .stroke(AppTheme.accentYellow(contrast), lineWidth: contrast == .increased ? 3 : 2)
+                                        .frame(width: Self.selectionRingSize, height: Self.selectionRingSize)
+                                }
                             }
-                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Self.accessibilityName(for: idx))
+                    .accessibilityAddTraits(selectedIndex == idx ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Avatar color \(idx + 1)")
-                .accessibilityAddTraits(selectedIndex == idx ? .isSelected : [])
             }
+            .padding(.vertical, 4)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
+    }
+
+    private static func accessibilityName(for index: Int) -> String {
+        let names = [
+            "Blue", "Green", "Purple", "Orange", "Cyan", "Coral",
+            "Gold", "Pink", "Slate", "Lime",
+        ]
+        let name = index < names.count ? names[index] : "Color \(index + 1)"
+        return "Avatar color, \(name)"
     }
 }

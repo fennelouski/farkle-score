@@ -101,6 +101,7 @@ struct SavedPlayersLibraryView: View {
                 }
             }
         }
+        .farkleVerticalSafeAreaFade()
         .farkleSheetChrome(detents: [.large])
     }
 

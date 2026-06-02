@@ -48,4 +48,36 @@ extension View {
                 .ignoresSafeArea()
         }
     }
+
+    /// Adds top/bottom fades over iOS safe-area edges for vertically scrollable content.
+    @ViewBuilder
+    func farkleVerticalSafeAreaFade(topExtra: CGFloat = 16, bottomExtra: CGFloat = 16) -> some View {
+#if os(iOS)
+        overlay {
+            GeometryReader { proxy in
+                VStack(spacing: 0) {
+                    LinearGradient(
+                        colors: [AppTheme.background, AppTheme.background.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: proxy.safeAreaInsets.top + topExtra)
+
+                    Spacer(minLength: 0)
+
+                    LinearGradient(
+                        colors: [AppTheme.background.opacity(0), AppTheme.background],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: proxy.safeAreaInsets.bottom + bottomExtra)
+                }
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
+            }
+        }
+#else
+        self
+#endif
+    }
 }

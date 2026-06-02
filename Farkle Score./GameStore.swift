@@ -11,6 +11,13 @@ final class GameStore {
     private static let maxInputDigits = 9
     private static let minPlayers = 2
     private static let maxPlayers = 6
+    static let targetScore = 10_000
+
+    enum GamePhase: String, Codable, Sendable {
+        case regular
+        case finalRound
+        case finished
+    }
 
     var players: [Player]
     var activePlayerIndex: Int
@@ -18,6 +25,9 @@ final class GameStore {
     var currentInput: String
     var turnEntries: [TurnScoreEntry]
     var autoAdvanceAfterScore: Bool
+    var gamePhase: GamePhase
+    var finalRoundPendingPlayerIDs: [UUID]
+    var finalRoundTriggerPlayerID: UUID?
 
     init(
         players: [Player] = GameStore.defaultPlayers(),
@@ -25,7 +35,10 @@ final class GameStore {
         history: [ScoreEntry] = [],
         currentInput: String = "",
         turnEntries: [TurnScoreEntry] = [],
-        autoAdvanceAfterScore: Bool = false
+        autoAdvanceAfterScore: Bool = false,
+        gamePhase: GamePhase = .regular,
+        finalRoundPendingPlayerIDs: [UUID] = [],
+        finalRoundTriggerPlayerID: UUID? = nil
     ) {
         self.players = players
         self.activePlayerIndex = min(activePlayerIndex, max(0, players.count - 1))
@@ -33,6 +46,13 @@ final class GameStore {
         self.currentInput = currentInput
         self.turnEntries = turnEntries
         self.autoAdvanceAfterScore = autoAdvanceAfterScore
+        self.gamePhase = gamePhase
+        self.finalRoundPendingPlayerIDs = finalRoundPendingPlayerIDs
+        self.finalRoundTriggerPlayerID = finalRoundTriggerPlayerID
+        reconcileFinalRoundPendingPlayers()
+        if self.gamePhase == .finished, !self.finalRoundPendingPlayerIDs.isEmpty {
+            self.gamePhase = .finalRound
+        }
     }
 
     static func defaultPlayers() -> [Player] {
@@ -54,6 +74,15 @@ final class GameStore {
     var activePlayer: Player? {
         guard players.indices.contains(activePlayerIndex) else { return nil }
         return players[activePlayerIndex]
+    }
+
+    var winner: Player? {
+        players.max { lhs, rhs in
+            if lhs.score == rhs.score {
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedDescending
+            }
+            return lhs.score < rhs.score
+        }
     }
 
     var canAddPlayer: Bool {
@@ -219,16 +248,25 @@ final class GameStore {
     }
 
     func addToScore() {
+        guard gamePhase != .finished else { return }
         guard var active = activePlayer else { return }
         let amount = resolvedTurnAmount
+        let wasInFinalRound = gamePhase == .finalRound
         active.score += amount
         players[activePlayerIndex] = active
         if amount != 0 {
             history.append(ScoreEntry(playerId: active.id, amount: amount))
         }
+
+        if gamePhase == .regular, active.score >= Self.targetScore {
+            startFinalRound(triggeredBy: active.id)
+        } else if wasInFinalRound {
+            completeFinalRoundTurn(for: active.id)
+        }
+
         clearTurnInput()
-        if autoAdvanceAfterScore, players.count > 1 {
-            activePlayerIndex = (activePlayerIndex + 1) % players.count
+        if gamePhase != .finished {
+            advanceTurnIfNeeded()
         }
     }
 
@@ -236,6 +274,7 @@ final class GameStore {
         guard let last = history.popLast() else { return }
         guard let idx = players.firstIndex(where: { $0.id == last.playerId }) else { return }
         players[idx].score -= last.amount
+        resetGameProgressAfterScoreMutation()
     }
 
     func deleteHistoryEntry(id: UUID) {
@@ -243,6 +282,7 @@ final class GameStore {
         let entry = history.remove(at: index)
         guard let idx = players.firstIndex(where: { $0.id == entry.playerId }) else { return }
         players[idx].score -= entry.amount
+        resetGameProgressAfterScoreMutation()
     }
 
     @discardableResult
@@ -254,6 +294,7 @@ final class GameStore {
         history.remove(at: index)
         activePlayerIndex = playerIdx
         setPreset(entry.amount)
+        resetGameProgressAfterScoreMutation()
         return true
     }
 
@@ -263,6 +304,9 @@ final class GameStore {
         }
         history.removeAll()
         clearInput()
+        gamePhase = .regular
+        finalRoundPendingPlayerIDs.removeAll()
+        finalRoundTriggerPlayerID = nil
         if !players.indices.contains(activePlayerIndex) {
             activePlayerIndex = 0
         }
@@ -289,6 +333,7 @@ final class GameStore {
             profileId: profileId,
             avatarColorIndex: colorIdx
         ))
+        reconcileFinalRoundPendingPlayers()
     }
 
     func addPlayer(from profile: PlayerProfile) {
@@ -310,6 +355,7 @@ final class GameStore {
             profileId: profile.id,
             avatarColorIndex: profile.avatarColorIndex
         ))
+        reconcileFinalRoundPendingPlayers()
     }
 
     struct PlayerIdentityUpdate: Sendable {
@@ -354,12 +400,20 @@ final class GameStore {
             player.profileId = profileWrap
         }
         players[index] = player
+        reconcileFinalRoundPendingPlayers()
     }
 
     func removePlayer(at index: Int) {
         guard canRemovePlayerDownToMinimum, players.indices.contains(index) else { return }
         let removedId = players[index].id
         players.remove(at: index)
+        finalRoundPendingPlayerIDs.removeAll { $0 == removedId }
+        if finalRoundTriggerPlayerID == removedId {
+            finalRoundTriggerPlayerID = nil
+        }
+        if gamePhase == .finalRound, finalRoundPendingPlayerIDs.isEmpty {
+            gamePhase = .finished
+        }
         if activePlayerIndex >= players.count {
             activePlayerIndex = max(0, players.count - 1)
         } else if index < activePlayerIndex {
@@ -380,5 +434,55 @@ final class GameStore {
 
     func playerColorIndex(for playerId: UUID) -> Int? {
         players.firstIndex(where: { $0.id == playerId })
+    }
+
+    private func advanceTurnIfNeeded() {
+        guard autoAdvanceAfterScore, players.count > 1 else { return }
+        activePlayerIndex = nextPlayerIndex(from: activePlayerIndex)
+    }
+
+    private func nextPlayerIndex(from index: Int) -> Int {
+        guard players.count > 1 else { return 0 }
+        return (index + 1) % players.count
+    }
+
+    private func startFinalRound(triggeredBy playerID: UUID) {
+        finalRoundTriggerPlayerID = playerID
+        finalRoundPendingPlayerIDs = players.map(\.id).filter { $0 != playerID }
+        if finalRoundPendingPlayerIDs.isEmpty {
+            gamePhase = .finished
+        } else {
+            gamePhase = .finalRound
+        }
+    }
+
+    private func completeFinalRoundTurn(for playerID: UUID) {
+        finalRoundPendingPlayerIDs.removeAll { $0 == playerID }
+        if finalRoundPendingPlayerIDs.isEmpty {
+            gamePhase = .finished
+        }
+    }
+
+    private func resetGameProgressAfterScoreMutation() {
+        finalRoundPendingPlayerIDs.removeAll()
+        finalRoundTriggerPlayerID = nil
+        gamePhase = .regular
+    }
+
+    private func reconcileFinalRoundPendingPlayers() {
+        guard gamePhase == .finalRound || gamePhase == .finished else {
+            return
+        }
+        let validIDs = Set(players.map(\.id))
+        finalRoundPendingPlayerIDs = finalRoundPendingPlayerIDs.filter { validIDs.contains($0) }
+        if let triggerID = finalRoundTriggerPlayerID {
+            finalRoundPendingPlayerIDs.removeAll { $0 == triggerID }
+        }
+        if gamePhase == .finalRound, finalRoundPendingPlayerIDs.isEmpty {
+            gamePhase = .finished
+        }
+        if gamePhase == .finished {
+            finalRoundPendingPlayerIDs.removeAll()
+        }
     }
 }

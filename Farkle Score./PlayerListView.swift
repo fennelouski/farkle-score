@@ -242,10 +242,11 @@ struct PlayerListView: View {
     }
 
     private var newGameButton: some View {
-        Button {
+        let gameFinished = store.gamePhase == .finished
+        return Button {
             showNewGameConfirmation = true
         } label: {
-            Label("NEW GAME", systemImage: "arrow.clockwise.circle.fill")
+            Label(gameFinished ? "NEW GAME READY" : "NEW GAME", systemImage: "arrow.clockwise.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -262,10 +263,16 @@ struct PlayerListView: View {
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(AppTheme.accentYellow(contrast))
+        .foregroundStyle(gameFinished ? AppTheme.primaryText : AppTheme.accentYellow(contrast))
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                .stroke(gameFinished ? AppTheme.accentYellow(contrast) : .clear, lineWidth: 1.5)
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("New game")
-        .accessibilityHint("Opens a confirmation before resetting scores and clearing history")
+        .accessibilityHint(gameFinished
+            ? "Game is complete. Starts a fresh game with the same players."
+            : "Opens a confirmation before resetting scores and clearing history")
     }
 }
 

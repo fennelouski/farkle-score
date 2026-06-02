@@ -18,6 +18,7 @@ struct MainPanelView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.farkleLayoutStyle) private var layoutStyle
     @State private var showFullHistory = false
+    @State private var showNewGameConfirmation = false
     @State private var selectedHistoryEntry: ScoreEntry?
 
     private var activeName: String {
@@ -26,6 +27,14 @@ struct MainPanelView: View {
 
     private var activeScore: Int {
         store.activePlayer?.score ?? 0
+    }
+
+    private var leaderName: String {
+        store.winner?.name ?? "—"
+    }
+
+    private var leaderScore: Int {
+        store.winner?.score ?? 0
     }
 
     private var stackVertically: Bool {
@@ -51,6 +60,13 @@ struct MainPanelView: View {
         .sheet(isPresented: $showFullHistory) {
             historySheet
         }
+        .farkleConfirmationDialog(
+            isPresented: $showNewGameConfirmation,
+            title: "Start new game?",
+            message: "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same.",
+            confirmTitle: "NEW GAME",
+            onConfirm: { store.newGame() }
+        )
         .onChange(of: store.history.isEmpty) { _, isEmpty in
             if isEmpty {
                 showFullHistory = false
@@ -70,6 +86,9 @@ struct MainPanelView: View {
     private var mainColumn: some View {
         VStack(alignment: .leading, spacing: 16) {
             header
+            if store.gamePhase != .regular {
+                gamePhaseBanner
+            }
 
             ScoreInputView()
 
@@ -98,7 +117,7 @@ struct MainPanelView: View {
 
     private var titleBlock: some View {
         VStack(spacing: 8) {
-            Text("\(activeName.uppercased())'S TURN")
+            Text(turnTitle)
                 .font(.system(.title, design: .rounded).bold())
                 .foregroundStyle(AppTheme.primaryText)
                 .multilineTextAlignment(.center)
@@ -108,7 +127,7 @@ struct MainPanelView: View {
                 .accessibilityHidden(true)
 
             HStack(spacing: 4) {
-                Text("Current Score:")
+                Text(scoreTitle)
                     .foregroundStyle(AppTheme.muted(contrast))
                 Text(AppTheme.formatScore(activeScore))
                     .fontWeight(.bold)
@@ -120,8 +139,79 @@ struct MainPanelView: View {
             .accessibilityHidden(true)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(activeName)'s turn. Current score \(AppTheme.spokenScore(activeScore)).")
+        .accessibilityLabel(accessibilityTitleLabel)
         .accessibilityAddTraits(.isHeader)
+    }
+
+    private var turnTitle: String {
+        switch store.gamePhase {
+        case .finished:
+            return "GAME COMPLETE"
+        case .finalRound, .regular:
+            return "\(activeName.uppercased())'S TURN"
+        }
+    }
+
+    private var scoreTitle: String {
+        store.gamePhase == .finished ? "Winning Score:" : "Current Score:"
+    }
+
+    private var accessibilityTitleLabel: String {
+        switch store.gamePhase {
+        case .finished:
+            return "Game complete. Winner is \(leaderName) with \(AppTheme.spokenScore(leaderScore))."
+        case .finalRound:
+            return "\(activeName)'s turn. Final round in progress. Current score \(AppTheme.spokenScore(activeScore))."
+        case .regular:
+            return "\(activeName)'s turn. Current score \(AppTheme.spokenScore(activeScore))."
+        }
+    }
+
+    private var gamePhaseBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if store.gamePhase == .finalRound {
+                Label("Final round: other players get one last turn.", systemImage: "flag.checkered")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.accentYellow(contrast))
+            } else if store.gamePhase == .finished {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Winner: \(leaderName) (\(AppTheme.formatScore(leaderScore)))")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                    Button {
+                        showNewGameConfirmation = true
+                    } label: {
+                        Label("NEW GAME", systemImage: "arrow.clockwise.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .farkleButtonHitArea()
+                            .background(
+                                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                    .fill(AppTheme.cardFill)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                            .stroke(AppTheme.stroke(contrast))
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(AppTheme.accentYellow(contrast))
+                    .accessibilityLabel("Start new game")
+                    .accessibilityHint("Resets all scores and clears game history")
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                .fill(AppTheme.cardFill.opacity(0.65))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .stroke(AppTheme.stroke(contrast))
+                )
+        )
     }
 
     private var undoButton: some View {

@@ -14,26 +14,70 @@
 import Foundation
 
 struct GameStoreState: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
 
     var schemaVersion: Int
     var players: [Player]
     var activePlayerIndex: Int
     var history: [ScoreEntry]
     var autoAdvanceAfterScore: Bool
+    var gamePhase: GameStore.GamePhase
+    var finalRoundPendingPlayerIDs: [UUID]
+    var finalRoundTriggerPlayerID: UUID?
 
     init(
         schemaVersion: Int = GameStoreState.currentSchemaVersion,
         players: [Player],
         activePlayerIndex: Int,
         history: [ScoreEntry],
-        autoAdvanceAfterScore: Bool
+        autoAdvanceAfterScore: Bool,
+        gamePhase: GameStore.GamePhase = .regular,
+        finalRoundPendingPlayerIDs: [UUID] = [],
+        finalRoundTriggerPlayerID: UUID? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.players = players
         self.activePlayerIndex = activePlayerIndex
         self.history = history
         self.autoAdvanceAfterScore = autoAdvanceAfterScore
+        self.gamePhase = gamePhase
+        self.finalRoundPendingPlayerIDs = finalRoundPendingPlayerIDs
+        self.finalRoundTriggerPlayerID = finalRoundTriggerPlayerID
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case players
+        case activePlayerIndex
+        case history
+        case autoAdvanceAfterScore
+        case gamePhase
+        case finalRoundPendingPlayerIDs
+        case finalRoundTriggerPlayerID
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        players = try c.decode([Player].self, forKey: .players)
+        activePlayerIndex = try c.decode(Int.self, forKey: .activePlayerIndex)
+        history = try c.decode([ScoreEntry].self, forKey: .history)
+        autoAdvanceAfterScore = try c.decodeIfPresent(Bool.self, forKey: .autoAdvanceAfterScore) ?? false
+        gamePhase = try c.decodeIfPresent(GameStore.GamePhase.self, forKey: .gamePhase) ?? .regular
+        finalRoundPendingPlayerIDs = try c.decodeIfPresent([UUID].self, forKey: .finalRoundPendingPlayerIDs) ?? []
+        finalRoundTriggerPlayerID = try c.decodeIfPresent(UUID.self, forKey: .finalRoundTriggerPlayerID)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(players, forKey: .players)
+        try c.encode(activePlayerIndex, forKey: .activePlayerIndex)
+        try c.encode(history, forKey: .history)
+        try c.encode(autoAdvanceAfterScore, forKey: .autoAdvanceAfterScore)
+        try c.encode(gamePhase, forKey: .gamePhase)
+        try c.encode(finalRoundPendingPlayerIDs, forKey: .finalRoundPendingPlayerIDs)
+        try c.encodeIfPresent(finalRoundTriggerPlayerID, forKey: .finalRoundTriggerPlayerID)
     }
 
     nonisolated static func == (lhs: GameStoreState, rhs: GameStoreState) -> Bool {
@@ -42,6 +86,9 @@ struct GameStoreState: Codable, Equatable, Sendable {
             && lhs.activePlayerIndex == rhs.activePlayerIndex
             && lhs.history == rhs.history
             && lhs.autoAdvanceAfterScore == rhs.autoAdvanceAfterScore
+            && lhs.gamePhase == rhs.gamePhase
+            && lhs.finalRoundPendingPlayerIDs == rhs.finalRoundPendingPlayerIDs
+            && lhs.finalRoundTriggerPlayerID == rhs.finalRoundTriggerPlayerID
     }
 }
 

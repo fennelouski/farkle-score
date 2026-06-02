@@ -142,6 +142,10 @@ enum AppTheme {
         Color(red: 1.0, green: 0.55, blue: 0.2),
         Color(red: 0.2, green: 0.75, blue: 0.82),
         Color(red: 0.95, green: 0.35, blue: 0.38),
+        Color(red: 0.92, green: 0.72, blue: 0.18),
+        Color(red: 0.88, green: 0.38, blue: 0.72),
+        Color(red: 0.45, green: 0.52, blue: 0.62),
+        Color(red: 0.72, green: 0.88, blue: 0.22),
     ]
 
     static let playerAvatarColorsHighContrast: [Color] = [
@@ -151,6 +155,10 @@ enum AppTheme {
         Color(red: 1.0, green: 0.7, blue: 0.4),
         Color(red: 0.4, green: 0.88, blue: 0.95),
         Color(red: 1.0, green: 0.55, blue: 0.58),
+        Color(red: 1.0, green: 0.85, blue: 0.45),
+        Color(red: 1.0, green: 0.58, blue: 0.88),
+        Color(red: 0.62, green: 0.7, blue: 0.82),
+        Color(red: 0.85, green: 0.98, blue: 0.45),
     ]
 
     static func avatarColor(index: Int) -> Color {

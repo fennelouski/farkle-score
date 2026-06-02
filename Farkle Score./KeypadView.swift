@@ -88,6 +88,7 @@ struct KeypadView: View {
                 .foregroundStyle(AppTheme.primaryText)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: keyMinHeight)
+                .farkleButtonHitArea()
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                         .fill(AppTheme.keypadButtonFill)

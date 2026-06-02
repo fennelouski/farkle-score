@@ -16,7 +16,9 @@ struct MainPanelView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.farkleLayoutStyle) private var layoutStyle
     @State private var showFullHistory = false
+    @State private var selectedHistoryEntry: ScoreEntry?
 
     private var activeName: String {
         store.activePlayer?.name ?? "—"
@@ -32,7 +34,7 @@ struct MainPanelView: View {
 
     /// iPad landscape: regular width but short height — scroll so header and keypad stay reachable.
     private var needsVerticalScroll: Bool {
-        horizontalSizeClass == .regular && verticalSizeClass == .compact
+        horizontalSizeClass == .regular && verticalSizeClass == .compact && layoutStyle != .phoneTabs
     }
 
     var body: some View {
@@ -50,8 +52,19 @@ struct MainPanelView: View {
             historySheet
         }
         .onChange(of: store.history.isEmpty) { _, isEmpty in
-            if isEmpty { showFullHistory = false }
+            if isEmpty {
+                showFullHistory = false
+                selectedHistoryEntry = nil
+            }
         }
+        .farkleHistoryEntryActionDialog(
+            entry: selectedHistoryEntry,
+            playerName: selectedHistoryEntry.map { playerName(for: $0.playerId) } ?? "",
+            canEdit: selectedHistoryEntry.map { canEditHistoryEntry($0) } ?? false,
+            onEdit: performEditHistoryEntry,
+            onDelete: performDeleteHistoryEntry,
+            onCancel: { selectedHistoryEntry = nil }
+        )
     }
 
     private var mainColumn: some View {
@@ -122,14 +135,15 @@ struct MainPanelView: View {
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .stroke(AppTheme.accentBlue(contrast), lineWidth: 1)
+                )
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentBlue(contrast))
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .stroke(AppTheme.accentBlue(contrast), lineWidth: 1)
-        )
         .disabled(store.history.isEmpty)
         .opacity(store.history.isEmpty ? 0.4 : 1)
         .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .trailing)
@@ -152,15 +166,16 @@ struct MainPanelView: View {
                 } label: {
                     Label("VIEW HISTORY", systemImage: "list.bullet")
                         .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .farkleButtonHitArea()
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast), lineWidth: 1)
+                        )
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(AppTheme.muted(contrast))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.stroke(contrast), lineWidth: 1)
-                )
                 .accessibilityLabel("View full history")
                 .accessibilityHint("Opens the complete list of score entries")
             }
@@ -175,7 +190,12 @@ struct MainPanelView: View {
                                 .padding(.horizontal, 8)
                                 .accessibilityHidden(true)
                         }
-                        recentEntryCell(entry)
+                        Button {
+                            presentHistoryEntryActions(for: entry)
+                        } label: {
+                            recentEntryCell(entry)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.vertical, 8)
@@ -214,41 +234,113 @@ struct MainPanelView: View {
                 .foregroundStyle(AppTheme.muted(contrast))
         }
         .padding(.horizontal, 12)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
         .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .shortened))
+        .accessibilityHint("Shows options to edit or delete this entry")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var historySheet: some View {
         NavigationStack {
-            List {
-                ForEach(Array(store.history.reversed())) { entry in
-                    let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
-                    let idx = store.playerColorIndex(for: entry.playerId) ?? 0
-                    HStack {
-                        Text(name)
-                            .foregroundStyle(AppTheme.avatarColor(index: idx, contrast: contrast))
-                        Spacer()
-                        Text("+\(AppTheme.formatScore(entry.amount))")
-                        Text(entry.timestamp, format: .dateTime.hour().minute().second())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            Group {
+                if store.history.isEmpty {
+                    ContentUnavailableView {
+                        Label("No history", systemImage: "clock.arrow.circlepath")
+                    } description: {
+                        Text("Score entries will appear here after you add points.")
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
-                    .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .standard))
+                    .foregroundStyle(AppTheme.muted(contrast))
+                } else {
+                    historyList
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("History")
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { showFullHistory = false }
                 }
             }
+            .tint(AppTheme.accentBlue(contrast))
         }
-#if os(iOS)
-        .farkleSheetChrome(detents: [.large])
+        .farkleScreenBackground()
+#if os(macOS)
+        .frame(minWidth: 480, minHeight: 360)
 #endif
+        .farkleHistorySheet()
+    }
+
+    private var historyList: some View {
+        List {
+            ForEach(Array(store.history.reversed())) { entry in
+                Button {
+                    presentHistoryEntryActions(for: entry)
+                } label: {
+                    historyRow(entry)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(AppTheme.cardFill.opacity(0.85))
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func historyRow(_ entry: ScoreEntry) -> some View {
+        let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
+        let idx = store.playerColorIndex(for: entry.playerId) ?? 0
+        return HStack {
+            Text(name)
+                .foregroundStyle(AppTheme.avatarColor(index: idx, contrast: contrast))
+            Spacer()
+            Text("+\(AppTheme.formatScore(entry.amount))")
+                .foregroundStyle(AppTheme.primaryText)
+            Text(entry.timestamp, format: .dateTime.hour().minute().second())
+                .font(.caption)
+                .foregroundStyle(AppTheme.muted(contrast))
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
+        .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .standard))
+        .accessibilityHint("Shows options to edit or delete this entry")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func playerName(for playerId: UUID) -> String {
+        store.players.first(where: { $0.id == playerId })?.name ?? "?"
+    }
+
+    private func canEditHistoryEntry(_ entry: ScoreEntry) -> Bool {
+        store.players.contains(where: { $0.id == entry.playerId })
+    }
+
+    private func presentHistoryEntryActions(for entry: ScoreEntry) {
+        selectedHistoryEntry = entry
+    }
+
+    private func performDeleteHistoryEntry() {
+        guard let entry = selectedHistoryEntry else { return }
+        let name = playerName(for: entry.playerId)
+        withAnimation(reduceMotion ? nil : .default) {
+            store.deleteHistoryEntry(id: entry.id)
+        }
+        selectedHistoryEntry = nil
+        announce("Deleted score entry for \(name)")
+    }
+
+    private func performEditHistoryEntry() {
+        guard let entry = selectedHistoryEntry else { return }
+        let name = playerName(for: entry.playerId)
+        guard store.prepareToEditHistoryEntry(id: entry.id) else { return }
+        selectedHistoryEntry = nil
+        showFullHistory = false
+        announce("Editing score for \(name). Adjust the turn score and add again.")
     }
 
     private func announce(_ message: String) {

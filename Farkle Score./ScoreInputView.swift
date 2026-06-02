@@ -22,6 +22,9 @@ struct ScoreInputView: View {
 
     @State private var showUnusualScoreConfirmation = false
     @State private var pendingUnusualAmount: Int?
+    @State private var activeInputPanel: ScoreInputPanel = .keypad
+
+    @Environment(\.farkleLayoutStyle) private var layoutStyle
 
     private var stackVertically: Bool {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
@@ -37,6 +40,24 @@ struct ScoreInputView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            scoreInputContent
+
+            if showDicePreview {
+                dicePreviewSection
+            }
+        }
+        .overlay {
+            if showUnusualScoreConfirmation, let amount = pendingUnusualAmount {
+                unusualScoreOverlay(amount: amount)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var scoreInputContent: some View {
+        if layoutStyle == .phoneTabs {
+            phoneScoreInputContent
+        } else {
             Group {
                 if stackVertically {
                     VStack(alignment: .leading, spacing: 16) {
@@ -50,14 +71,71 @@ struct ScoreInputView: View {
                     }
                 }
             }
-
-            if showDicePreview {
-                dicePreviewSection
-            }
         }
-        .overlay {
-            if showUnusualScoreConfirmation, let amount = pendingUnusualAmount {
-                unusualScoreOverlay(amount: amount)
+    }
+
+    private var phoneScoreInputContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("ENTER TURN SCORE")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(AppTheme.muted(contrast))
+                .accessibilityLabel("Enter turn score")
+                .accessibilityAddTraits(.isHeader)
+
+            inputDisplay
+
+            TurnScoreBreakdownView(
+                entries: store.repeatableChipEntries,
+                onRemove: { store.removeTurnEntry(id: $0) }
+            )
+
+            Picker("Score input mode", selection: $activeInputPanel) {
+                Text("Keypad").tag(ScoreInputPanel.keypad)
+                Text("Common scores").tag(ScoreInputPanel.commonScores)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Score input mode")
+
+            Group {
+                if activeInputPanel == .keypad {
+                    KeypadView(
+                        onDigit: { store.appendDigit($0) },
+                        onDoubleZero: { store.appendDoubleZero() },
+                        onBackspace: { store.backspace() }
+                    )
+                } else {
+                    phoneCommonScoresPanel
+                }
+            }
+
+            AddToScoreButton(accentColor: activePlayerAccentColor) {
+                requestAddToScore()
+            }
+            .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { cardBackground() }
+    }
+
+    private var phoneCommonScoresPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Rules: \(activeRulesTitle)")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.muted(contrast).opacity(0.9))
+                .accessibilityLabel("Scoring rules: \(activeRulesTitle)")
+
+            CommonScoreGridView(
+                presets: scoringProfile.commonScorePresets(),
+                profile: scoringProfile,
+                turnEntries: store.turnEntries,
+                canAppend: { store.canAppendTurnEntry(preset: $0, profile: scoringProfile) }
+            ) { preset in
+                store.appendTurnEntry(preset: preset, profile: scoringProfile)
+            }
+
+            ClearInputButton {
+                store.clearTurnInput()
             }
         }
     }
@@ -274,6 +352,11 @@ struct ScoreInputView: View {
                     .stroke(AppTheme.stroke(contrast))
             )
     }
+}
+
+private enum ScoreInputPanel: Hashable {
+    case keypad
+    case commonScores
 }
 
 #Preview {

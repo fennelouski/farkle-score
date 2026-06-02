@@ -10,6 +10,7 @@ struct PlayerListView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.farkleLayoutStyle) private var layoutStyle
     @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
     @State private var editorMode: PlayerEditorMode?
     @State private var showSavedPlayersLibrary = false
@@ -17,8 +18,12 @@ struct PlayerListView: View {
     @State private var showRulesLibrary = false
     @State private var showNewGameConfirmation = false
 
+    private var isGameStarted: Bool {
+        !store.history.isEmpty
+    }
+
     private var needsVerticalScroll: Bool {
-        horizontalSizeClass == .regular && verticalSizeClass == .compact
+        horizontalSizeClass == .regular && verticalSizeClass == .compact && layoutStyle != .phoneTabs
     }
 
     var body: some View {
@@ -28,11 +33,13 @@ struct PlayerListView: View {
                     sidebarColumn
                         .padding(.bottom, 8)
                 }
+                .farkleVerticalSafeAreaFade()
             } else {
                 sidebarColumn
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(item: $editorMode) { mode in
             PlayerEditorSheet(mode: mode) {
                 editorMode = nil
@@ -63,11 +70,11 @@ struct PlayerListView: View {
             header
                 .padding(.bottom, 16)
 
-            Text("PLAYERS (6 MAX)")
+            Text(isGameStarted ? "PLAYERS" : "PLAYERS (6 MAX)")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted(contrast))
                 .padding(.bottom, 8)
-                .accessibilityLabel("Players, 6 maximum")
+                .accessibilityLabel(isGameStarted ? "Players" : "Players, 6 maximum")
                 .accessibilityAddTraits(.isHeader)
 
             Group {
@@ -85,6 +92,7 @@ struct PlayerListView: View {
                             }
                         }
                     }
+                    .farkleVerticalSafeAreaFade(topExtra: 0, bottomExtra: 0)
                 }
             }
 
@@ -106,8 +114,10 @@ struct PlayerListView: View {
                     .accessibilityHint("When on, the next player is selected automatically after each score is added")
             }
 
-            addPlayerButton
-            newGameButton
+            if !isGameStarted {
+                addPlayerButton
+                newGameButton
+            }
         }
     }
 
@@ -136,17 +146,40 @@ struct PlayerListView: View {
             }
             Spacer(minLength: 8)
             HStack(spacing: 0) {
-                Button {
-                    showSavedPlayersLibrary = true
-                } label: {
-                    Image(systemName: "person.2.fill")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.primaryGreen)
-                        .padding(8)
-                        .farkleButtonHitArea()
+                if isGameStarted {
+                    Menu {
+                        Button {
+                            showNewGameConfirmation = true
+                        } label: {
+                            Label("NEW GAME", systemImage: "arrow.clockwise.circle.fill")
+                        }
+
+                        Button {
+                            showSavedPlayersLibrary = true
+                        } label: {
+                            Label("Saved Players", systemImage: "person.2.fill")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .foregroundStyle(AppTheme.primaryGreen)
+                            .padding(8)
+                            .farkleButtonHitArea()
+                    }
+                    .accessibilityLabel("Game menu")
+                } else {
+                    Button {
+                        showSavedPlayersLibrary = true
+                    } label: {
+                        Image(systemName: "person.2.fill")
+                            .font(.title3)
+                            .foregroundStyle(AppTheme.primaryGreen)
+                            .padding(8)
+                            .farkleButtonHitArea()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Saved players")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Saved players")
 
                 Button {
                     showRulesLibrary = true

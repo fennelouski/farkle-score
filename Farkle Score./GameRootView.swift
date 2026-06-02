@@ -14,14 +14,26 @@ struct GameRootView: View {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
     }
 
+    private var layoutStyle: FarkleLayoutStyle {
+#if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            return .phoneTabs
+        }
+#endif
+        return useCompact ? .compactScroll : .sidebar
+    }
+
     var body: some View {
         Group {
-            if useCompact {
+            if layoutStyle == .phoneTabs {
+                phoneTabLayout
+            } else if layoutStyle == .compactScroll {
                 compactLayout
             } else {
                 regularLayout
             }
         }
+        .environment(\.farkleLayoutStyle, layoutStyle)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)
         .farkleScreenBackground()
@@ -50,8 +62,25 @@ struct GameRootView: View {
                 MainPanelView()
             }
         }
+        .farkleVerticalSafeAreaFade()
         .safeAreaPadding(.horizontal, 12)
         .safeAreaPadding(.vertical, 8)
+    }
+
+    private var phoneTabLayout: some View {
+        TabView {
+            PhoneScoreTabView()
+                .tabItem {
+                    Label("Score", systemImage: "sum")
+                }
+                .accessibilityIdentifier("farkle.tab.score")
+
+            PlayerListView()
+                .tabItem {
+                    Label("Players", systemImage: "person.2")
+                }
+                .accessibilityIdentifier("farkle.tab.players")
+        }
     }
 }
 

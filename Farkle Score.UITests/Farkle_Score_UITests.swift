@@ -36,12 +36,6 @@ final class Farkle_Score_UITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        /// On compact + scroll layout, score controls can start below the fold; scroll to build the full a11y tree.
-        if app.scrollViews.firstMatch.waitForExistence(timeout: 3) {
-            app.scrollViews.firstMatch.swipeUp(velocity: .fast)
-            app.scrollViews.firstMatch.swipeUp(velocity: .fast)
-        }
-
         func hasLabeledElement(_ label: String) -> Bool {
             app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label))
@@ -63,6 +57,7 @@ final class Farkle_Score_UITests: XCTestCase {
             addToScore.waitForExistence(timeout: 10),
             "Add-to-score control must expose the 'Add to score' accessibility label"
         )
+        switchToCommonScoresIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Clear"),
             "Clear control must expose the 'Clear' accessibility label"
@@ -88,6 +83,7 @@ final class Farkle_Score_UITests: XCTestCase {
             "Undo control must expose the 'Undo last entry' accessibility label"
         )
 
+        openPlayersTabIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Players, 6 maximum"),
             "Players section header must expose its expanded accessibility label"
@@ -107,13 +103,7 @@ final class Farkle_Score_UITests: XCTestCase {
     func testOpenSettingsShowsAppStoreSection() throws {
         let app = XCUIApplication()
         app.launch()
-
-        /// Compact layout embeds the player column in a scroll view; ensure the header (gear) is on-screen.
-        if app.scrollViews.firstMatch.waitForExistence(timeout: 3) {
-            for _ in 0 ..< 4 where !app.buttons["Settings"].exists {
-                app.scrollViews.firstMatch.swipeDown(velocity: .fast)
-            }
-        }
+        openPlayersTabIfPresent(app)
 
         let settingsButton = app.buttons["Settings"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 8), "Settings button must be tappable")
@@ -126,5 +116,129 @@ final class Farkle_Score_UITests: XCTestCase {
             appStoreHeader.waitForExistence(timeout: 5),
             "Settings must include the App Store section for policy/support links"
         )
+    }
+
+    /// New Game must show a confirmation dialog; cancel preserves scores, confirm resets them.
+    @MainActor
+    func testNewGameConfirmationCancelAndConfirm() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        scrollToRevealScoreControlsIfNeeded(app)
+
+        let digitFive = app.buttons["farkle.keypad.digit.5"]
+        XCTAssertTrue(digitFive.waitForExistence(timeout: 10), "Keypad digit 5 must be available")
+        digitFive.tap()
+
+        let addToScore = app.buttons["Add to score"]
+        XCTAssertTrue(addToScore.waitForExistence(timeout: 5))
+        addToScore.tap()
+
+        let scoredRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "position 1", "5 points"))
+            .firstMatch
+        XCTAssertTrue(
+            scoredRow.waitForExistence(timeout: 5),
+            "First player row should show 5 points after scoring"
+        )
+
+        openPlayersTabIfPresent(app)
+        let newGame = app.buttons["New game"]
+        XCTAssertTrue(newGame.waitForExistence(timeout: 5))
+        newGame.tap()
+
+        let dialogTitle = app.staticTexts["farkle.confirmation.title"]
+        XCTAssertTrue(
+            dialogTitle.waitForExistence(timeout: 5),
+            "New game must present a confirmation dialog"
+        )
+
+        let cancel = app.buttons["farkle.confirmation.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 3))
+        cancel.tap()
+
+        XCTAssertTrue(
+            scoredRow.waitForExistence(timeout: 3),
+            "Cancel must leave existing scores unchanged"
+        )
+        XCTAssertFalse(
+            dialogTitle.exists,
+            "Confirmation dialog must dismiss after cancel"
+        )
+
+        newGame.tap()
+        XCTAssertTrue(dialogTitle.waitForExistence(timeout: 5))
+
+        let confirm = app.buttons["farkle.confirmation.confirm"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 3))
+        confirm.tap()
+
+        XCTAssertFalse(dialogTitle.waitForExistence(timeout: 2))
+
+        let zeroRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "position 1", "0 points"))
+            .firstMatch
+        XCTAssertTrue(
+            zeroRow.waitForExistence(timeout: 5),
+            "Confirm new game must reset scores to zero"
+        )
+    }
+
+    @MainActor
+    func testActivePlayerEditButtonOpensEditorSheet() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let secondRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "Bob, position 2"))
+            .firstMatch
+        XCTAssertTrue(secondRow.waitForExistence(timeout: 8), "Second player row should be visible")
+        secondRow.tap()
+
+        let editBobButton = app.buttons["Edit Bob"]
+        XCTAssertTrue(
+            editBobButton.waitForExistence(timeout: 5),
+            "Active player row should expose the edit pencil action"
+        )
+        editBobButton.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["Edit Player"].waitForExistence(timeout: 5),
+            "Tapping the edit action must open the player editor sheet"
+        )
+    }
+
+    @MainActor
+    private func scrollToRevealScoreControlsIfNeeded(_ app: XCUIApplication) {
+        openScoreTabIfPresent(app)
+        guard app.scrollViews.firstMatch.waitForExistence(timeout: 3) else { return }
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0 ..< 4 where !app.buttons["farkle.keypad.digit.5"].exists {
+            scrollView.swipeUp(velocity: .fast)
+        }
+    }
+
+    @MainActor
+    private func openPlayersTabIfPresent(_ app: XCUIApplication) {
+        let playersTab = app.tabBars.buttons["Players"]
+        if playersTab.exists {
+            playersTab.tap()
+        }
+    }
+
+    @MainActor
+    private func openScoreTabIfPresent(_ app: XCUIApplication) {
+        let scoreTab = app.tabBars.buttons["Score"]
+        if scoreTab.exists {
+            scoreTab.tap()
+        }
+    }
+
+    @MainActor
+    private func switchToCommonScoresIfPresent(_ app: XCUIApplication) {
+        let commonScores = app.segmentedControls.buttons["Common scores"]
+        if commonScores.waitForExistence(timeout: 2) {
+            commonScores.tap()
+        }
     }
 }

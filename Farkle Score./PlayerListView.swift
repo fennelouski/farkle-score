@@ -19,7 +19,15 @@ struct PlayerListView: View {
     @State private var showNewGameConfirmation = false
 
     private var isGameStarted: Bool {
-        !store.history.isEmpty
+        store.isGameInProgress
+    }
+
+    private var newGameConfirmationMessage: String {
+        var message = "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same."
+        if store.isGameInProgress {
+            message += " You can undo the reset right away from the header."
+        }
+        return message
     }
 
     private var needsVerticalScroll: Bool {
@@ -59,7 +67,7 @@ struct PlayerListView: View {
         .farkleConfirmationDialog(
             isPresented: $showNewGameConfirmation,
             title: "Start new game?",
-            message: "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same.",
+            message: newGameConfirmationMessage,
             confirmTitle: "NEW GAME",
             onConfirm: { store.newGame() }
         )
@@ -146,40 +154,27 @@ struct PlayerListView: View {
             }
             Spacer(minLength: 8)
             HStack(spacing: 0) {
-                if isGameStarted {
-                    Menu {
-                        Button {
-                            showNewGameConfirmation = true
-                        } label: {
-                            Label("NEW GAME", systemImage: "arrow.clockwise.circle.fill")
-                        }
-
-                        Button {
-                            showSavedPlayersLibrary = true
-                        } label: {
-                            Label("Saved Players", systemImage: "person.2.fill")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.title3)
-                            .foregroundStyle(AppTheme.primaryGreen)
-                            .padding(8)
-                            .farkleButtonHitArea()
+                if store.canUndoNewGame {
+                    UndoNewGameButton {
+                        store.undoNewGame()
                     }
-                    .accessibilityLabel("Game menu")
-                } else {
-                    Button {
-                        showSavedPlayersLibrary = true
-                    } label: {
-                        Image(systemName: "person.2.fill")
-                            .font(.title3)
-                            .foregroundStyle(AppTheme.primaryGreen)
-                            .padding(8)
-                            .farkleButtonHitArea()
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Saved players")
                 }
+                if isGameStarted || store.gamePhase == .finished {
+                    NewGameIconButton {
+                        showNewGameConfirmation = true
+                    }
+                }
+                Button {
+                    showSavedPlayersLibrary = true
+                } label: {
+                    Image(systemName: "person.2.fill")
+                        .font(.title3)
+                        .foregroundStyle(AppTheme.primaryGreen)
+                        .padding(8)
+                        .farkleButtonHitArea()
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Saved players")
 
                 Button {
                     showRulesLibrary = true

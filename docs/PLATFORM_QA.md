@@ -21,5 +21,6 @@ Run before each store submission.
 
 ## App Store Connect assets
 
+- Generate screenshots with automation first: `bundle exec fastlane screenshots` (see `docs/SCREENSHOTS.md`).
 - Capture screenshots per required size classes: iPhone, iPad Pro (12.9" and 11" as required), Mac (windowed), Apple Vision (if listing on visionOS store).
 - Match **Privacy Policy URL** and **Support URL** with `FarklePrivacyPolicyURL` / `FarkleSupportURL` in Info.plist and with the Nutrition Labels (iCloud, optional photos for avatars, no third-party trackers).

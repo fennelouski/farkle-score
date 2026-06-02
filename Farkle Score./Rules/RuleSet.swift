@@ -13,6 +13,14 @@ struct RuleSetMetadata: Identifiable, Decodable, Hashable {
     let family: Family
     let sourceURL: URL?
 
+    var localizedTitle: String {
+        NSLocalizedString(title, comment: "Ruleset title")
+    }
+
+    var localizedSubtitle: String {
+        NSLocalizedString(subtitle, comment: "Ruleset subtitle")
+    }
+
     enum Family: String, Decodable, Hashable {
         case farkle
         case zilch

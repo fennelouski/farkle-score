@@ -61,6 +61,53 @@ struct ClearInputButton: View {
     }
 }
 
+struct NewGameIconButton: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "arrow.clockwise.circle")
+                .font(.title3)
+                .foregroundStyle(AppTheme.accentYellow(contrast))
+                .padding(8)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .stroke(AppTheme.stroke(contrast), lineWidth: 1)
+                )
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("New game")
+        .accessibilityHint("Opens a confirmation before resetting scores and clearing history")
+    }
+}
+
+struct UndoNewGameButton: View {
+    @Environment(\.colorSchemeContrast) private var contrast
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("UNDO RESET", systemImage: "arrow.uturn.backward.circle")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .stroke(AppTheme.accentYellow(contrast), lineWidth: 1.5)
+                )
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppTheme.accentYellow(contrast))
+        .accessibilityLabel("Undo new game")
+        .accessibilityHint("Restores scores and history from before the reset")
+    }
+}
+
 #Preview {
     VStack(spacing: 12) {
         AddToScoreButton(accentColor: AppTheme.avatarColor(index: 2), action: {})

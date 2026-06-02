@@ -145,6 +145,17 @@ enum AppSettings {
         loadScoringPreferences().resolvedProfile()
     }
 
+    /// Stable defaults for Fastlane snapshot / screenshot UI tests.
+    nonisolated static func applyScreenshotDefaults() {
+        hapticsEnabled = false
+        showAutoAdvanceTurnOption = false
+        showDicePreview = false
+        syncCurrentSession = false
+        saveScoringPreferences(
+            ScoringPreferencesPayload.defaultTemplate(rulesetId: ScoringProfile.defaultRulesetId)
+        )
+    }
+
     private nonisolated static func migrateScoringPreferencesIfNeeded() {
         let key = Key.scoringPreferencesJSON
         let existing = defaults.string(forKey: key)

@@ -17,11 +17,14 @@ enum CloudSyncController {
     private static let scoringPrefsEncoder = JSONEncoder()
     private static let scoringPrefsDecoder = JSONDecoder()
 
+    private static var skipsCloudOperations: Bool { ScreenshotMode.isEnabled }
+
     static func bootstrapAfterLaunch(
         store: GameStore,
         profileStore: PlayerProfileStore,
         persistence: GameStorePersistence
     ) async {
+        guard !skipsCloudOperations else { return }
         guard await cloud.fetchAccountStatus() == .available else { return }
         do {
             try await cloud.registerZoneSubscriptionIfNeeded()

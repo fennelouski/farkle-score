@@ -46,6 +46,14 @@ struct MainPanelView: View {
         horizontalSizeClass == .regular && verticalSizeClass == .compact && layoutStyle != .phoneTabs
     }
 
+    private var newGameConfirmationMessage: String {
+        var message = "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same."
+        if store.isGameInProgress {
+            message += " You can undo the reset right away from the header."
+        }
+        return message
+    }
+
     var body: some View {
         Group {
             if needsVerticalScroll {
@@ -63,9 +71,14 @@ struct MainPanelView: View {
         .farkleConfirmationDialog(
             isPresented: $showNewGameConfirmation,
             title: "Start new game?",
-            message: "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same.",
+            message: newGameConfirmationMessage,
             confirmTitle: "NEW GAME",
-            onConfirm: { store.newGame() }
+            onConfirm: {
+                store.newGame()
+                if store.canUndoNewGame {
+                    announce("New game started. Undo reset is available.")
+                }
+            }
         )
         .onChange(of: store.history.isEmpty) { _, isEmpty in
             if isEmpty {
@@ -103,13 +116,13 @@ struct MainPanelView: View {
             if stackVertically {
                 VStack(alignment: .leading, spacing: 12) {
                     titleBlock
-                    undoButton
+                    headerActions
                 }
             } else {
                 HStack(alignment: .top) {
                     titleBlock
                     Spacer(minLength: 8)
-                    undoButton
+                    headerActions
                 }
             }
         }
@@ -170,36 +183,13 @@ struct MainPanelView: View {
     private var gamePhaseBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             if store.gamePhase == .finalRound {
-                Label("Final round: other players get one last turn.", systemImage: "flag.checkered")
+                Label("Final round: everyone gets one last turn.", systemImage: "flag.checkered")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.accentYellow(contrast))
             } else if store.gamePhase == .finished {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Winner: \(leaderName) (\(AppTheme.formatScore(leaderScore)))")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppTheme.primaryText)
-                    Button {
-                        showNewGameConfirmation = true
-                    } label: {
-                        Label("NEW GAME", systemImage: "arrow.clockwise.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .farkleButtonHitArea()
-                            .background(
-                                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                    .fill(AppTheme.cardFill)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                            .stroke(AppTheme.stroke(contrast))
-                                    )
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(AppTheme.accentYellow(contrast))
-                    .accessibilityLabel("Start new game")
-                    .accessibilityHint("Resets all scores and clears game history")
-                }
+                Text("Winner: \(leaderName) (\(AppTheme.formatScore(leaderScore)))")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.primaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -214,7 +204,27 @@ struct MainPanelView: View {
         )
     }
 
-    private var undoButton: some View {
+    private var headerActions: some View {
+        HStack(spacing: 8) {
+            if store.isGameInProgress || store.gamePhase == .finished {
+                NewGameIconButton {
+                    showNewGameConfirmation = true
+                }
+            }
+            if store.canUndoNewGame {
+                UndoNewGameButton {
+                    withAnimation(reduceMotion ? nil : .default) {
+                        store.undoNewGame()
+                    }
+                    announce("Restored previous game")
+                }
+            }
+            undoLastEntryButton
+        }
+        .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .trailing)
+    }
+
+    private var undoLastEntryButton: some View {
         Button {
             withAnimation(reduceMotion ? nil : .default) {
                 store.undoLastEntry()
@@ -236,7 +246,6 @@ struct MainPanelView: View {
         .foregroundStyle(AppTheme.accentBlue(contrast))
         .disabled(store.history.isEmpty)
         .opacity(store.history.isEmpty ? 0.4 : 1)
-        .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .trailing)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Undo last entry")
         .accessibilityHint("Removes the most recent score entry")

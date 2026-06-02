@@ -97,10 +97,10 @@ struct RulesLibraryView: View {
 
     private func ruleRow(_ meta: RuleSetMetadata) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(meta.title)
+            Text(meta.localizedTitle)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
-            Text(meta.subtitle)
+            Text(meta.localizedSubtitle)
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.muted(contrast))
         }

@@ -67,6 +67,48 @@ struct GameStoreTests {
         #expect(store.currentInput.isEmpty)
     }
 
+    @Test func newGameCanBeUndoneOnce() {
+        let store = GameStore(
+            players: [Player(name: "A", score: 100), Player(name: "B", score: 50)],
+            activePlayerIndex: 1,
+            history: [ScoreEntry(playerId: UUID(), amount: 100)]
+        )
+        store.newGame()
+        #expect(store.players[0].score == 0)
+        #expect(store.canUndoNewGame)
+        store.undoNewGame()
+        #expect(store.players[0].score == 100)
+        #expect(store.players[1].score == 50)
+        #expect(store.activePlayerIndex == 1)
+        #expect(!store.canUndoNewGame)
+    }
+
+    @Test func scoringAfterNewGameClearsUndoReset() {
+        let store = GameStore(players: [Player(name: "A", score: 200)], activePlayerIndex: 0)
+        store.newGame()
+        #expect(store.canUndoNewGame)
+        store.setPreset(10)
+        store.addToScore()
+        #expect(!store.canUndoNewGame)
+    }
+
+    @Test func finalRoundIncludesTriggeringPlayer() {
+        let alice = UUID()
+        let bob = UUID()
+        let store = GameStore(
+            players: [
+                Player(id: alice, name: "Alice", score: 9_900),
+                Player(id: bob, name: "Bob", score: 0),
+            ],
+            activePlayerIndex: 0
+        )
+        store.setPreset(100)
+        store.addToScore()
+        #expect(store.gamePhase == .finalRound)
+        #expect(store.finalRoundPendingPlayerIDs.contains(alice))
+        #expect(store.finalRoundPendingPlayerIDs.contains(bob))
+    }
+
     @Test func rosterMergePrefersCloudIdsAndKeepsMatchingScores() {
         let idA = UUID(), idB = UUID()
         let cloud = [

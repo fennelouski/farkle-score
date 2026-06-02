@@ -33,7 +33,7 @@ struct RulesDetailView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .farkleScreenBackground()
-        .navigationTitle(metadata.title)
+        .navigationTitle(metadata.localizedTitle)
 #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
 #endif

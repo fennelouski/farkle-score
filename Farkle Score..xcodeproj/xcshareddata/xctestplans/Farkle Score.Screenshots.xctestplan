@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "name" : "Default",
+      "options" : {
+        "testExecutionOrdering" : "lexical"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Farkle Score..xcodeproj",
+      "identifier" : "80D3C6472FA7E4DF00BED495",
+      "name" : "Farkle Score."
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : false,
+      "target" : {
+        "containerPath" : "container:Farkle Score..xcodeproj",
+        "identifier" : "80D3C6622FA7E4E100BED495",
+        "name" : "Farkle Score.UITests"
+      }
+    }
+  ],
+  "version" : 1
+}

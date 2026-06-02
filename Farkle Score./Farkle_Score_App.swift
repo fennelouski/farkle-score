@@ -20,20 +20,29 @@ struct Farkle_Score_App: App {
     private let persistence = GameStorePersistence.default
 
     init() {
+        ScreenshotMode.prepareForLaunchIfNeeded()
         _ = AppSettings.loadScoringPreferences()
-        let store = GameStore()
-        if let restored = try? persistence.load() {
-            store.restore(from: restored)
-        }
-        if let mtime = GameStorePersistence.default.sessionFileModificationDate() {
-            AppSettings.lastLocalPersistenceWrite = mtime
-        }
+
+        let store: GameStore
         let profiles = PlayerProfileStore()
-        var players = store.players
-        if GameRosterProfileSync.sync(players: &players, profileStore: profiles) {
-            store.players = players
-            try? persistence.save(store.snapshot)
+
+        if ScreenshotMode.isEnabled {
+            store = GameStore.screenshotFixture
+        } else {
+            store = GameStore()
+            if let restored = try? persistence.load() {
+                store.restore(from: restored)
+            }
+            if let mtime = GameStorePersistence.default.sessionFileModificationDate() {
+                AppSettings.lastLocalPersistenceWrite = mtime
+            }
+            var players = store.players
+            if GameRosterProfileSync.sync(players: &players, profileStore: profiles) {
+                store.players = players
+                try? persistence.save(store.snapshot)
+            }
         }
+
         _gameStore = State(initialValue: store)
         _profileStore = State(initialValue: profiles)
     }
@@ -44,6 +53,7 @@ struct Farkle_Score_App: App {
                 .environment(gameStore)
                 .environment(profileStore)
                 .task {
+                    guard !ScreenshotMode.isEnabled else { return }
                     await CloudSyncController.bootstrapAfterLaunch(
                         store: gameStore,
                         profileStore: profileStore,
@@ -51,6 +61,7 @@ struct Farkle_Score_App: App {
                     )
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .cloudKitRemoteRefresh)) { _ in
+                    guard !ScreenshotMode.isEnabled else { return }
                     Task {
                         await CloudSyncController.mergeFromRemoteNotification(
                             store: gameStore,
@@ -59,6 +70,11 @@ struct Farkle_Score_App: App {
                         )
                     }
                 }
+#if os(macOS)
+                .onAppear {
+                    ScreenshotMode.configureMacWindowIfNeeded()
+                }
+#endif
         }
 #if os(iOS) || os(macOS) || os(visionOS)
         .commands {
@@ -72,6 +88,7 @@ struct Farkle_Score_App: App {
         }
 #endif
         .onChange(of: scenePhase) { _, phase in
+            guard !ScreenshotMode.isEnabled else { return }
             if phase == .background || phase == .inactive {
                 Task {
                     await CloudSyncController.persistAndSync(

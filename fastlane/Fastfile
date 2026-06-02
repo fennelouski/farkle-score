@@ -1,0 +1,18 @@
+# Fastlane lanes for Farkle Score.
+# Run from repository root: bundle install && bundle exec fastlane screenshots
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Generate App Store screenshots (iPhone, iPad, Mac) via UI tests"
+  lane :screenshots do
+    snapshot(
+      scheme: "Farkle Score. Screenshots",
+      project: "Farkle Score..xcodeproj",
+      only_testing: ["Farkle Score.UITests/ScreenshotTests"],
+      output_directory: "./screenshots",
+      clear_previous_screenshots: true,
+      skip_open_summary: true
+    )
+  end
+end

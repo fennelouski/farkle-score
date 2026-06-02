@@ -23,7 +23,7 @@ struct SettingsView: View {
     }
 
     private var selectedRulesetTitle: String {
-        selectedRulesetMeta?.title ?? scoringPayload.templateRulesetId
+        selectedRulesetMeta?.localizedTitle ?? scoringPayload.templateRulesetId
     }
 
     private var shortVersion: String {
@@ -86,7 +86,7 @@ struct SettingsView: View {
             Section {
                 Picker("Scoring ruleset", selection: templateRulesetBinding) {
                     ForEach(RulesLibrary.allMetadata) { meta in
-                        Text(meta.title).tag(meta.id)
+                        Text(meta.localizedTitle).tag(meta.id)
                     }
                 }
                 .tint(AppTheme.accentBlue(contrast))
@@ -105,7 +105,7 @@ struct SettingsView: View {
                 .disabled(!scoringPayload.useCustomScoring)
                 .tint(AppTheme.accentBlue(contrast))
 
-                if let subtitle = selectedRulesetMeta?.subtitle, !subtitle.isEmpty {
+                if let subtitle = selectedRulesetMeta?.localizedSubtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.muted(contrast))

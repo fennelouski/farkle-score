@@ -57,7 +57,7 @@ final class Farkle_Score_UITests: XCTestCase {
             addToScore.waitForExistence(timeout: 10),
             "Add-to-score control must expose the 'Add to score' accessibility label"
         )
-        switchToCommonScoresIfPresent(app)
+        UITestNavigation.switchToCommonScoresIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Clear"),
             "Clear control must expose the 'Clear' accessibility label"
@@ -83,7 +83,7 @@ final class Farkle_Score_UITests: XCTestCase {
             "Undo control must expose the 'Undo last entry' accessibility label"
         )
 
-        openPlayersTabIfPresent(app)
+        UITestNavigation.openPlayersTabIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Players, 6 maximum"),
             "Players section header must expose its expanded accessibility label"
@@ -103,7 +103,7 @@ final class Farkle_Score_UITests: XCTestCase {
     func testOpenSettingsShowsAppStoreSection() throws {
         let app = XCUIApplication()
         app.launch()
-        openPlayersTabIfPresent(app)
+        UITestNavigation.openPlayersTabIfPresent(app)
 
         let settingsButton = app.buttons["Settings"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 8), "Settings button must be tappable")
@@ -124,7 +124,7 @@ final class Farkle_Score_UITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        scrollToRevealScoreControlsIfNeeded(app)
+        UITestNavigation.scrollToRevealScoreControlsIfNeeded(app)
 
         let digitFive = app.buttons["farkle.keypad.digit.5"]
         XCTAssertTrue(digitFive.waitForExistence(timeout: 10), "Keypad digit 5 must be available")
@@ -142,7 +142,7 @@ final class Farkle_Score_UITests: XCTestCase {
             "First player row should show 5 points after scoring"
         )
 
-        openPlayersTabIfPresent(app)
+        UITestNavigation.openPlayersTabIfPresent(app)
         let newGame = app.buttons["New game"]
         XCTAssertTrue(newGame.waitForExistence(timeout: 5))
         newGame.tap()
@@ -208,37 +208,4 @@ final class Farkle_Score_UITests: XCTestCase {
         )
     }
 
-    @MainActor
-    private func scrollToRevealScoreControlsIfNeeded(_ app: XCUIApplication) {
-        openScoreTabIfPresent(app)
-        guard app.scrollViews.firstMatch.waitForExistence(timeout: 3) else { return }
-        let scrollView = app.scrollViews.firstMatch
-        for _ in 0 ..< 4 where !app.buttons["farkle.keypad.digit.5"].exists {
-            scrollView.swipeUp(velocity: .fast)
-        }
-    }
-
-    @MainActor
-    private func openPlayersTabIfPresent(_ app: XCUIApplication) {
-        let playersTab = app.tabBars.buttons["Players"]
-        if playersTab.exists {
-            playersTab.tap()
-        }
-    }
-
-    @MainActor
-    private func openScoreTabIfPresent(_ app: XCUIApplication) {
-        let scoreTab = app.tabBars.buttons["Score"]
-        if scoreTab.exists {
-            scoreTab.tap()
-        }
-    }
-
-    @MainActor
-    private func switchToCommonScoresIfPresent(_ app: XCUIApplication) {
-        let commonScores = app.segmentedControls.buttons["Common scores"]
-        if commonScores.waitForExistence(timeout: 2) {
-            commonScores.tap()
-        }
-    }
 }

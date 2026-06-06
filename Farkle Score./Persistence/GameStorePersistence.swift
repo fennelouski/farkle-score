@@ -6,7 +6,7 @@
 //
 //  - Format:    JSON, UTF-8, ISO-8601 dates.
 //  - Location:  Application Support/<bundle-id>/farkle-session.json
-//  - Schema:    `GameStoreState.currentSchemaVersion` (currently 1).
+//  - Schema:    `GameStoreState.currentSchemaVersion` (currently 3).
 //
 //  Migration policy (full details in /MIGRATION.md):
 //    - Bump `GameStoreState.currentSchemaVersion` when the on-disk shape changes.
@@ -67,14 +67,12 @@ struct GameStorePersistence {
         }
 
         switch probe.schemaVersion {
-        case 1:
+        case 1...GameStoreState.currentSchemaVersion:
             do {
                 return try decoder.decode(GameStoreState.self, from: data)
             } catch {
                 throw GameStorePersistenceError.decodingFailed(underlying: String(describing: error))
             }
-        // Future:
-        // case 2: return try migrateV1ToV2(decoder.decode(GameStoreStateV1.self, from: data))
         default:
             throw GameStorePersistenceError.unsupportedSchemaVersion(
                 found: probe.schemaVersion,

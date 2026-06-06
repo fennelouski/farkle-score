@@ -174,4 +174,14 @@ nonisolated struct ScoringPreferencesPayload: Codable, Equatable, Sendable {
             custom: CustomScoringValues(from: profile)
         )
     }
+
+    mutating func activateBundledRuleset(id: String) {
+        templateRulesetId = id
+        useCustomScoring = false
+        custom = CustomScoringValues(from: ScoringProfile.profile(for: id))
+    }
+
+    mutating func activateCustomRuleset() {
+        useCustomScoring = true
+    }
 }

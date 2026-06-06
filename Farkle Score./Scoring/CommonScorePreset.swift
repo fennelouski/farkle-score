@@ -6,7 +6,7 @@
 import Foundation
 
 struct CommonScorePreset: Identifiable, Sendable {
-    var id: Int { value }
+    var id: String { label }
     let value: Int
     let label: String
 }

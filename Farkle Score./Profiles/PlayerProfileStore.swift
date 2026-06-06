@@ -24,6 +24,22 @@ final class PlayerProfileStore {
         profiles.first { $0.id == id }
     }
 
+    func profile(named name: String, excludingId: UUID? = nil) -> PlayerProfile? {
+        let key = ProfileDedup.normalizedName(name)
+        guard !key.isEmpty else { return nil }
+        return profiles.first {
+            $0.id != excludingId && ProfileDedup.normalizedName($0.name) == key
+        }
+    }
+
+    @discardableResult
+    func applyDedup(rosterPlayers: [Player], persist: Bool = true) -> ProfileDedupResult {
+        let result = ProfileDedup.deduplicated(profiles: profiles, rosterPlayers: rosterPlayers)
+        profiles = result.profiles
+        if persist { try? persistence.save(profiles) }
+        return result
+    }
+
     func allSortedByName() -> [PlayerProfile] {
         profiles
     }

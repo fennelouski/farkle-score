@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import SwiftUI
 import Testing
 @testable import Farkle_Score_
 
@@ -81,6 +82,36 @@ struct GameStoreTests {
         #expect(store.players[1].score == 50)
         #expect(store.activePlayerIndex == 1)
         #expect(!store.canUndoNewGame)
+    }
+
+    @Test func movePlayersReordersAndPreservesActivePlayer() {
+        let store = GameStore(
+            players: [Player(name: "A"), Player(name: "B"), Player(name: "C")],
+            activePlayerIndex: 0
+        )
+        store.movePlayers(fromOffsets: IndexSet(integer: 0), toOffset: 3)
+        #expect(store.players.map(\.name) == ["B", "C", "A"])
+        #expect(store.activePlayer?.name == "A")
+        #expect(store.activePlayerIndex == 2)
+    }
+
+    @Test func movePlayersUpdatesActivePlayerIndexWhenActiveMoved() {
+        let store = GameStore(
+            players: [Player(name: "A"), Player(name: "B"), Player(name: "C")],
+            activePlayerIndex: 1
+        )
+        store.movePlayers(fromOffsets: IndexSet(integer: 1), toOffset: 0)
+        #expect(store.players.map(\.name) == ["B", "A", "C"])
+        #expect(store.activePlayerIndex == 0)
+        #expect(store.activePlayer?.name == "B")
+    }
+
+    @Test func movePlayersBlockedWhenGameInProgress() {
+        let store = GameStore(players: [Player(name: "A"), Player(name: "B")], activePlayerIndex: 0)
+        store.setPreset(100)
+        store.addToScore()
+        store.movePlayers(fromOffsets: IndexSet(integer: 0), toOffset: 2)
+        #expect(store.players.map(\.name) == ["A", "B"])
     }
 
     @Test func scoringAfterNewGameClearsUndoReset() {
@@ -469,6 +500,30 @@ struct PersistenceTests {
         #expect(loaded == state)
     }
 
+    /// Current-schema sessions reload after a simulated app restart.
+    @Test func currentSchemaSessionRestoresPlayerRoster() throws {
+        let url = makeTempFileURL()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let persistence = GameStorePersistence(fileURL: url)
+
+        let roster = [
+            Player(name: "Nathan", score: 1200),
+            Player(name: "Sam", score: 800),
+            Player(name: "Jordan", score: 0),
+        ]
+        try persistence.save(GameStoreState(
+            schemaVersion: GameStoreState.currentSchemaVersion,
+            players: roster,
+            activePlayerIndex: 1,
+            history: [],
+            autoAdvanceAfterScore: false
+        ))
+
+        let restored = try #require(try persistence.load())
+        #expect(restored.players.map(\.name) == ["Nathan", "Sam", "Jordan"])
+        #expect(restored.activePlayerIndex == 1)
+    }
+
     /// Loading when no file is present returns nil rather than throwing.
     @Test func loadingMissingFileReturnsNil() throws {
         let url = makeTempFileURL()
@@ -486,7 +541,10 @@ struct PersistenceTests {
         try json.data(using: .utf8)!.write(to: url)
 
         let persistence = GameStorePersistence(fileURL: url)
-        #expect(throws: GameStorePersistenceError.unsupportedSchemaVersion(found: 999, supported: 1)) {
+        #expect(throws: GameStorePersistenceError.unsupportedSchemaVersion(
+            found: 999,
+            supported: GameStoreState.currentSchemaVersion
+        )) {
             _ = try persistence.load()
         }
     }
@@ -670,22 +728,70 @@ struct PlayerProfileStoreTests {
 
 struct GameRosterProfileSyncTests {
 
-    @Test func syncBackfillsDefaultRosterIntoLibrary() {
+    @Test func syncSkipsDefaultRosterExemptPlayers() {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("profiles-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
         var players = GameStore.defaultPlayers()
+        let exemptions = DefaultRosterExemption.inferExemptions(from: players)
         #expect(players.allSatisfy { $0.profileId == nil })
         #expect(profileStore.profiles.isEmpty)
 
-        let changed = GameRosterProfileSync.sync(players: &players, profileStore: profileStore)
+        let changed = GameRosterProfileSync.sync(
+            players: &players,
+            profileStore: profileStore,
+            defaultRosterExemptions: exemptions
+        )
 
-        #expect(changed)
+        #expect(!changed)
         #expect(players.count == 3)
-        #expect(players.allSatisfy { $0.profileId != nil })
-        #expect(profileStore.profiles.count == 3)
-        #expect(Set(profileStore.profiles.map(\.name)) == Set(["Alice", "Bob", "Chris"]))
+        #expect(players.allSatisfy { $0.profileId == nil })
+        #expect(profileStore.profiles.isEmpty)
+    }
+
+    @Test func syncSavesRenamedDefaultPlayer() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        var players = GameStore.defaultPlayers()
+        let exemptions = DefaultRosterExemption.inferExemptions(from: players)
+        players[0].name = "Alicia"
+
+        _ = GameRosterProfileSync.sync(
+            players: &players,
+            profileStore: profileStore,
+            defaultRosterExemptions: exemptions
+        )
+
+        #expect(players[0].profileId != nil)
+        #expect(profileStore.profile(named: "Alicia") != nil)
+        #expect(players[1].profileId == nil)
+        #expect(players[2].profileId == nil)
+    }
+
+    @Test func syncSavesNewPlayerWithDefaultName() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        var players = GameStore.defaultPlayers()
+        let exemptions = DefaultRosterExemption.inferExemptions(from: players)
+        let newAlice = Player(name: "Alice")
+        players.append(newAlice)
+
+        _ = GameRosterProfileSync.sync(
+            players: &players,
+            profileStore: profileStore,
+            defaultRosterExemptions: exemptions
+        )
+
+        #expect(players[0].profileId == nil)
+        #expect(players[3].profileId != nil)
+        #expect(profileStore.profiles.count == 1)
+        #expect(profileStore.profiles[0].name == "Alice")
+        #expect(profileStore.profiles[0].id == players[3].profileId)
     }
 
     @Test func syncAdoptsPhotoToCanonicalProfileFilename() throws {
@@ -732,6 +838,59 @@ struct GameRosterProfileSyncTests {
     }
 }
 
+struct ProfileDedupTests {
+
+    @Test func dedupPrefersRosterLinkedProfile() {
+        let linkedId = UUID()
+        let orphanId = UUID()
+        let profiles = [
+            PlayerProfile(id: linkedId, name: "Jordan", avatarColorIndex: 1, modifiedAt: .distantPast),
+            PlayerProfile(id: orphanId, name: "Jordan", avatarColorIndex: 2, modifiedAt: .now),
+        ]
+        let roster = [Player(name: "Jordan", profileId: linkedId)]
+        let result = ProfileDedup.deduplicated(profiles: profiles, rosterPlayers: roster)
+        #expect(result.profiles.count == 1)
+        #expect(result.profiles[0].id == linkedId)
+        #expect(result.removedIds == [orphanId])
+        #expect(result.idRewrites[orphanId] == linkedId)
+    }
+
+    @Test func profileStoreUpsertsByNameOnAdd() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        let firstId = UUID()
+        store.add(PlayerProfile(id: firstId, name: "Jordan", avatarColorIndex: 1), persist: true)
+        store.add(PlayerProfile(id: UUID(), name: "jordan", avatarColorIndex: 5), persist: true)
+        #expect(store.profiles.count == 2)
+        store.applyDedup(rosterPlayers: [])
+        #expect(store.profiles.count == 1)
+        #expect(store.profiles[0].avatarColorIndex == 5)
+    }
+}
+
+struct DefaultRosterExemptionTests {
+
+    @Test func restoreInfersExemptionsForLegacySession() {
+        let source = GameStore()
+        var snap = source.snapshot
+        snap.defaultRosterExemptions = []
+        let target = GameStore(players: [Player(name: "X")])
+        target.restore(from: snap)
+        #expect(target.defaultRosterExemptions.count == 3)
+        #expect(Set(target.defaultRosterExemptions.values) == Set(["Alice", "Bob", "Chris"]))
+    }
+
+    @Test func snapshotRoundTripsDefaultRosterExemptions() {
+        let store = GameStore()
+        let snap = store.snapshot
+        let target = GameStore(players: [Player(name: "X")], defaultRosterExemptions: [:])
+        target.restore(from: snap)
+        #expect(target.defaultRosterExemptions == store.defaultRosterExemptions)
+    }
+}
+
 struct GameStoreProfileTests {
 
     @Test func addPlayerFromProfileLinksIdentity() {
@@ -744,6 +903,37 @@ struct GameStoreProfileTests {
         #expect(store.players[2].name == "Riley")
         #expect(store.players[2].avatarColorIndex == 3)
         #expect(store.isProfileInGame(profileId))
+    }
+
+    @Test func replacePlayerFromProfileKeepsScoreAndSlotId() {
+        let oldId = UUID()
+        let profileId = UUID()
+        let profile = PlayerProfile(id: profileId, name: "Riley", avatarEmoji: "⭐", avatarColorIndex: 3)
+        let store = GameStore(players: [
+            Player(id: oldId, name: "Alice", score: 1_500),
+            Player(name: "Bob"),
+        ])
+        store.replacePlayer(at: 0, from: profile)
+        #expect(store.players[0].id == oldId)
+        #expect(store.players[0].score == 1_500)
+        #expect(store.players[0].name == "Riley")
+        #expect(store.players[0].profileId == profileId)
+        #expect(store.isProfileInGame(profileId))
+    }
+
+    @Test func replacePlayerRejectsProfileAlreadyInGame() {
+        let sharedProfileId = UUID()
+        let store = GameStore(players: [
+            Player(name: "Alice", profileId: sharedProfileId),
+            Player(name: "Bob"),
+        ])
+        let riley = PlayerProfile(id: UUID(), name: "Riley")
+        store.replacePlayer(at: 1, from: riley)
+        #expect(store.players[1].name == "Riley")
+
+        let duplicate = PlayerProfile(id: sharedProfileId, name: "Alice")
+        store.replacePlayer(at: 1, from: duplicate)
+        #expect(store.players[1].name == "Riley")
     }
 
     @Test func updateAndRemovePlayer() {
@@ -760,6 +950,9 @@ struct GameStoreProfileTests {
         #expect(store.players[1].avatarColorIndex == 5)
         store.removePlayer(at: 2)
         #expect(store.players.count == 2)
+        #expect(store.canRemovePlayerDownToMinimum == true)
+        store.removePlayer(at: 1)
+        #expect(store.players.count == 1)
         #expect(store.canRemovePlayerDownToMinimum == false)
     }
 }
@@ -846,6 +1039,92 @@ struct FarkleScoringEngineTests {
     }
 }
 
+// MARK: - History round matrix
+
+struct HistoryRoundMatrixTests {
+
+    @Test func twoPlayerAlternatingScoresFormTwoRounds() {
+        let alice = Player(name: "Alice", score: 0)
+        let bob = Player(name: "Bob", score: 0)
+        let players = [alice, bob]
+        let history = [
+            ScoreEntry(playerId: alice.id, amount: 100),
+            ScoreEntry(playerId: bob.id, amount: 50),
+            ScoreEntry(playerId: alice.id, amount: 200),
+            ScoreEntry(playerId: bob.id, amount: 75),
+        ]
+        let matrix = HistoryRoundMatrix.build(players: players, history: history)
+        #expect(matrix.rows.count == 2)
+        #expect(matrix.rows[0].roundNumber == 2)
+        #expect(matrix.rows[1].roundNumber == 1)
+        #expect(matrix.rows[1].cells[0].roundAmount == 100)
+        #expect(matrix.rows[1].cells[1].roundAmount == 50)
+        #expect(matrix.rows[0].cells[0].roundAmount == 200)
+        #expect(matrix.rows[0].cells[1].roundAmount == 75)
+    }
+
+    @Test func skippedPlayerLeavesEmptyCellInRound() {
+        let alice = Player(name: "Alice", score: 0)
+        let bob = Player(name: "Bob", score: 0)
+        let charlie = Player(name: "Charlie", score: 0)
+        let players = [alice, bob, charlie]
+        let history = [
+            ScoreEntry(playerId: alice.id, amount: 100),
+            ScoreEntry(playerId: charlie.id, amount: 300),
+        ]
+        let matrix = HistoryRoundMatrix.build(players: players, history: history)
+        #expect(matrix.rows.count == 1)
+        #expect(matrix.rows[0].cells[0].roundAmount == 100)
+        #expect(matrix.rows[0].cells[1].entry == nil)
+        #expect(matrix.rows[0].cells[2].roundAmount == 300)
+    }
+
+    @Test func cumulativeTotalsThroughRoundTwo() {
+        let alice = Player(name: "Alice", score: 0)
+        let bob = Player(name: "Bob", score: 0)
+        let players = [alice, bob]
+        let history = [
+            ScoreEntry(playerId: alice.id, amount: 100),
+            ScoreEntry(playerId: bob.id, amount: 50),
+            ScoreEntry(playerId: alice.id, amount: 200),
+            ScoreEntry(playerId: bob.id, amount: 75),
+        ]
+        let matrix = HistoryRoundMatrix.build(players: players, history: history)
+        #expect(matrix.cumulativeTotal(forPlayerId: alice.id, throughRound: 1) == 100)
+        #expect(matrix.cumulativeTotal(forPlayerId: bob.id, throughRound: 1) == 50)
+        #expect(matrix.cumulativeTotal(forPlayerId: alice.id, throughRound: 2) == 300)
+        #expect(matrix.cumulativeTotal(forPlayerId: bob.id, throughRound: 2) == 125)
+    }
+
+    @Test func unknownPlayerEntriesAreIgnoredInMatrix() {
+        let alice = Player(name: "Alice", score: 0)
+        let removed = UUID()
+        let players = [alice]
+        let history = [
+            ScoreEntry(playerId: alice.id, amount: 100),
+            ScoreEntry(playerId: removed, amount: 500),
+            ScoreEntry(playerId: alice.id, amount: 50),
+        ]
+        let matrix = HistoryRoundMatrix.build(players: players, history: history)
+        #expect(matrix.rows.count == 2)
+        #expect(matrix.rows[0].cells[0].roundAmount == 50)
+        #expect(matrix.rows[1].cells[0].roundAmount == 100)
+    }
+
+    @Test func singlePlayerEachScoreStartsNewRound() {
+        let solo = Player(name: "Solo", score: 0)
+        let history = [
+            ScoreEntry(playerId: solo.id, amount: 100),
+            ScoreEntry(playerId: solo.id, amount: 200),
+            ScoreEntry(playerId: solo.id, amount: 50),
+        ]
+        let matrix = HistoryRoundMatrix.build(players: [solo], history: history)
+        #expect(matrix.rows.count == 3)
+        #expect(matrix.rows.map(\.roundNumber) == [3, 2, 1])
+        #expect(matrix.rows.allSatisfy { $0.cells.count == 1 && $0.cells[0].entry != nil })
+    }
+}
+
 // MARK: - App settings
 
 struct AppSettingsTests {
@@ -866,11 +1145,230 @@ struct AppSettingsTests {
         #expect(AppSettings.hapticsEnabled == false)
     }
 
+    @Test func appearanceModeUnsetDefaultsSystemAndPersistsDark() {
+        let key = AppSettings.appearanceModeStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.appearanceMode == .system)
+        AppSettings.appearanceMode = .dark
+        #expect(AppSettings.appearanceMode == .dark)
+    }
+
+    @Test func historyShowTimesUnsetDefaultsTrueAndPersistsFalse() {
+        let key = AppSettings.historyShowTimesStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.historyShowTimes == true)
+        AppSettings.historyShowTimes = false
+        #expect(AppSettings.historyShowTimes == false)
+    }
+
+    @Test func historyDisplayModeUnsetDefaultsTableAndPersistsList() {
+        let key = AppSettings.historyDisplayModeStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.historyDisplayMode == .table)
+        AppSettings.historyDisplayMode = .list
+        #expect(AppSettings.historyDisplayMode == .list)
+    }
+
     @Test func defaultRulesetMetadataHasSubtitleForSettingsPreview() {
         let id = ScoringProfile.defaultRulesetId
         let subtitle = RulesLibrary.metadata(id: id)?.subtitle
         #expect(subtitle != nil)
         #expect(!(subtitle?.isEmpty ?? true))
+    }
+
+    @Test func activateBundledRulesetDisablesCustomAndRefreshesValues() {
+        let scoringKey = AppSettings.scoringPreferencesJSONStorageKey
+        let previous = UserDefaults.standard.string(forKey: scoringKey)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: scoringKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: scoringKey)
+            }
+        }
+
+        var payload = ScoringPreferencesPayload.defaultTemplate(rulesetId: ScoringProfile.defaultRulesetId)
+        payload.useCustomScoring = true
+        payload.custom.singleOne = 777
+        AppSettings.saveScoringPreferences(payload)
+
+        let activated = AppSettings.activateBundledRuleset(id: "farkle-playmonster")
+        #expect(activated.useCustomScoring == false)
+        #expect(activated.templateRulesetId == "farkle-playmonster")
+        #expect(activated.custom.singleOne == ScoringProfile.profile(for: "farkle-playmonster").singleOne)
+        #expect(AppSettings.loadScoringPreferences().templateRulesetId == "farkle-playmonster")
+    }
+
+    @Test func activateCustomRulesetPreservesSavedValues() {
+        let scoringKey = AppSettings.scoringPreferencesJSONStorageKey
+        let previous = UserDefaults.standard.string(forKey: scoringKey)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: scoringKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: scoringKey)
+            }
+        }
+
+        var payload = ScoringPreferencesPayload.defaultTemplate(rulesetId: ScoringProfile.defaultRulesetId)
+        payload.custom.singleOne = 777
+        payload.useCustomScoring = false
+        AppSettings.saveScoringPreferences(payload)
+
+        let activated = AppSettings.activateCustomRuleset()
+        #expect(activated.useCustomScoring == true)
+        #expect(activated.custom.singleOne == 777)
+        #expect(activated.templateRulesetId == ScoringProfile.defaultRulesetId)
+        #expect(AppSettings.loadScoringPreferences().useCustomScoring == true)
+    }
+
+    @Test func showStandingBadgesUnsetDefaultsTrueAndPersistsFalse() {
+        let key = AppSettings.showStandingBadgesStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.showStandingBadges == true)
+        AppSettings.showStandingBadges = false
+        #expect(AppSettings.showStandingBadges == false)
+    }
+
+    @Test func showStandingSecondThirdUnsetDefaultsFalse() {
+        let key = AppSettings.showStandingSecondThirdStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.showStandingSecondThird == false)
+    }
+
+    @Test func showStandingFourthPlusUnsetDefaultsFalse() {
+        let key = AppSettings.showStandingFourthPlusStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.showStandingFourthPlus == false)
+    }
+}
+
+// MARK: - Player standings
+
+struct PlayerStandingsTests {
+
+    @Test func distinctScoresAssignSequentialRanks() {
+        let alice = Player(name: "Alice", score: 300)
+        let bob = Player(name: "Bob", score: 200)
+        let chris = Player(name: "Chris", score: 100)
+        let ranks = PlayerStandings.rankByPlayerID(for: [alice, bob, chris])
+        #expect(ranks[alice.id] == 1)
+        #expect(ranks[bob.id] == 2)
+        #expect(ranks[chris.id] == 3)
+    }
+
+    @Test func tieForFirstSharesRankAndSkipsSecond() {
+        let alice = Player(name: "Alice", score: 100)
+        let bob = Player(name: "Bob", score: 100)
+        let chris = Player(name: "Chris", score: 50)
+        let ranks = PlayerStandings.rankByPlayerID(for: [alice, bob, chris])
+        #expect(ranks[alice.id] == 1)
+        #expect(ranks[bob.id] == 1)
+        #expect(ranks[chris.id] == 3)
+    }
+
+    @Test func tiePreservesRosterOrderWithinSameScore() {
+        let alice = Player(name: "Alice", score: 100)
+        let bob = Player(name: "Bob", score: 100)
+        let ranksForward = PlayerStandings.rankByPlayerID(for: [alice, bob])
+        let ranksReversed = PlayerStandings.rankByPlayerID(for: [bob, alice])
+        #expect(ranksForward[alice.id] == 1)
+        #expect(ranksForward[bob.id] == 1)
+        #expect(ranksReversed[bob.id] == 1)
+        #expect(ranksReversed[alice.id] == 1)
+    }
+
+    @Test func allEqualScoresHaveNoDifferentiation() {
+        let players = [
+            Player(name: "Alice", score: 0),
+            Player(name: "Bob", score: 0),
+        ]
+        #expect(!PlayerStandings.hasScoreDifferentiation(for: players))
+        let ranks = PlayerStandings.rankByPlayerID(for: players)
+        #expect(ranks[players[0].id] == 1)
+        #expect(ranks[players[1].id] == 1)
+    }
+
+    @Test func hasScoreDifferentiationWhenScoresDiffer() {
+        let players = [
+            Player(name: "Alice", score: 100),
+            Player(name: "Bob", score: 0),
+        ]
+        #expect(PlayerStandings.hasScoreDifferentiation(for: players))
+    }
+
+    @Test func circledRankDigitMapsFourthThroughSixth() {
+        #expect(PlayerStandings.circledRankDigit(4) == "④")
+        #expect(PlayerStandings.circledRankDigit(5) == "⑤")
+        #expect(PlayerStandings.circledRankDigit(6) == "⑥")
+        #expect(PlayerStandings.circledRankDigit(3) == nil)
+    }
+
+    @Test func standingBadgeOptionsRespectHierarchy() {
+        let crownOnly = StandingBadgeOptions(showBadges: true, showSecondThird: false, showFourthPlus: false)
+        #expect(crownOnly.shouldShowBadge(for: 1))
+        #expect(!crownOnly.shouldShowBadge(for: 2))
+        #expect(!crownOnly.shouldShowBadge(for: 4))
+
+        let withMedals = StandingBadgeOptions(showBadges: true, showSecondThird: true, showFourthPlus: false)
+        #expect(withMedals.shouldShowBadge(for: 2))
+        #expect(withMedals.shouldShowBadge(for: 3))
+        #expect(!withMedals.shouldShowBadge(for: 4))
+
+        let allRanks = StandingBadgeOptions(showBadges: true, showSecondThird: true, showFourthPlus: true)
+        #expect(allRanks.shouldShowBadge(for: 4))
+        #expect(allRanks.shouldShowBadge(for: 6))
+
+        let off = StandingBadgeOptions(showBadges: false, showSecondThird: true, showFourthPlus: true)
+        #expect(!off.shouldShowBadge(for: 1))
     }
 }
 
@@ -973,7 +1471,7 @@ struct TurnScoreBuilderTests {
         #expect(store.turnEntries.isEmpty)
     }
 
-    @Test func selectPlayerClearsTurnBuilder() {
+    @Test func selectPlayerPreservesTurnBuilder() {
         let store = GameStore(
             players: [Player(name: "A", score: 0), Player(name: "B", score: 0)],
             activePlayerIndex: 0
@@ -981,8 +1479,39 @@ struct TurnScoreBuilderTests {
         let profile = cardgamesProfile
         store.appendTurnEntry(preset: preset(label: "Single 1", in: profile), profile: profile)
         store.selectPlayer(at: 1)
-        #expect(store.turnEntries.isEmpty)
+        #expect(store.turnEntries.count == 1)
+        #expect(store.resolvedTurnAmount == 100)
         #expect(store.activePlayerIndex == 1)
+    }
+
+    @Test func selectPlayerPreservesKeypadInput() {
+        let store = GameStore(
+            players: [Player(name: "A", score: 0), Player(name: "B", score: 0)],
+            activePlayerIndex: 0
+        )
+        store.appendDigit("1")
+        store.appendDigit("2")
+        store.appendDigit("5")
+        store.appendDigit("0")
+        store.selectPlayer(at: 1)
+        #expect(store.currentInput == "1250")
+        #expect(store.resolvedTurnAmount == 1250)
+        #expect(store.activePlayerIndex == 1)
+    }
+
+    @Test func addToScoreAfterPlayerSwitchStillClearsInput() {
+        let store = GameStore(
+            players: [Player(name: "A", score: 0), Player(name: "B", score: 0)],
+            activePlayerIndex: 0
+        )
+        store.appendDigit("5")
+        store.appendDigit("0")
+        store.selectPlayer(at: 1)
+        store.addToScore()
+        #expect(store.players[0].score == 0)
+        #expect(store.players[1].score == 50)
+        #expect(store.currentInput.isEmpty)
+        #expect(store.turnEntries.isEmpty)
     }
 
     @Test func singleChipMaxSixPerLabel() {
@@ -1065,84 +1594,42 @@ struct TurnScoreBuilderTests {
         #expect(store.turnEntries.count == 1)
     }
 
-    @Test func dicePreviewRespectsDiceBudget() {
-        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
-        let profile = cardgamesProfile
-        store.appendTurnEntry(preset: preset(label: "Three 6s", in: profile), profile: profile)
-        store.appendTurnEntry(preset: preset(label: "Three 1s", in: profile), profile: profile)
-        let previewFaces = [0, 0, 0, 0, 2, 2]
-        #expect(!store.canAppendTurnEntry(
-            diceCount: 4,
-            label: "Dice preview (500)",
-            faceCounts: previewFaces,
-            isTriple: false,
-            maxPerLabel: 1
-        ))
-        store.appendTurnEntry(
-            value: 500,
-            label: "Dice preview (500)",
-            kind: .combination,
-            diceCount: 4,
-            faceCounts: previewFaces
-        )
-        #expect(store.turnEntries.count == 2)
+}
+
+struct CommonScorePresetsTests {
+
+    private static let tripleLabels = (1 ... 6).map { "Three \($0)s" }
+
+    @Test func everyBundledRulesetHasAllSixTripleButtons() {
+        for rulesetId in RuleLibraryTestsSupport.metadataIDs() {
+            let labels = Set(ScoringProfile.profile(for: rulesetId).commonScorePresets().map(\.label))
+            for expected in Self.tripleLabels {
+                #expect(labels.contains(expected), "\(rulesetId) missing \(expected)")
+            }
+        }
     }
 
-    @Test func dicePreviewAppendSucceedsWithinBudget() {
-        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
-        let threeTwos = [0, 3, 0, 0, 0, 0]
-        store.appendTurnEntry(
-            value: 300,
-            label: "Dice preview (300)",
-            kind: .combination,
-            diceCount: 3,
-            faceCounts: threeTwos
-        )
-        #expect(store.turnEntries.count == 1)
-        let threeThrees = [0, 0, 3, 0, 0, 0]
-        store.appendTurnEntry(
-            value: 200,
-            label: "Dice preview (200)",
-            kind: .combination,
-            diceCount: 3,
-            faceCounts: threeThrees
-        )
-        #expect(store.turnEntries.count == 2)
-        #expect(TurnEntryLimits.totalDice(in: store.turnEntries) == 6)
+    @Test func playMonsterThreeThreesIsPresent() {
+        let presets = ScoringProfile.profile(for: "farkle-playmonster").commonScorePresets()
+        let three3 = presets.first { $0.label == "Three 3s" }
+        #expect(three3?.value == 300)
     }
 
-    @Test func dicePreviewRejectsDuplicateLabel() {
-        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
-        let threeTwos = [0, 3, 0, 0, 0, 0]
-        store.appendTurnEntry(
-            value: 300,
-            label: "Dice preview (300)",
-            kind: .combination,
-            diceCount: 3,
-            faceCounts: threeTwos
-        )
-        store.appendTurnEntry(
-            value: 300,
-            label: "Dice preview (300)",
-            kind: .combination,
-            diceCount: 3,
-            faceCounts: threeTwos
-        )
-        #expect(store.turnEntries.count == 1)
+    @Test func cardgamesKeepsFourOfAKindAlongsideThreeOnes() {
+        let labels = ScoringProfile.profile(for: "farkle-cardgames-io").commonScorePresets().map(\.label)
+        #expect(labels.contains("Three 1s"))
+        #expect(labels.contains("Four of a kind"))
     }
 
-    @Test func dicePreviewRespectsPerFaceLimit() {
-        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
-        let profile = cardgamesProfile
-        store.appendTurnEntry(preset: preset(label: "Three 1s", in: profile), profile: profile)
-        let fourOnes = [4, 0, 0, 0, 0, 0]
-        #expect(!store.canAppendTurnEntry(
-            diceCount: 4,
-            label: "Dice preview (1,000)",
-            faceCounts: fourOnes,
-            isTriple: false,
-            maxPerLabel: 1
-        ))
+    @Test func zilchKeepsCollidingValuePresets() {
+        let labels = ScoringProfile.profile(for: "zilch-playr").commonScorePresets().map(\.label)
+        #expect(labels.contains("Four 2s (Zilch)"))
+        #expect(labels.contains("Three pairs"))
+    }
+
+    @Test func duplicateGridValuesStillRepresentableForKeypad() {
+        let rules = ScoringProfile.profile(for: "farkle-cardgames-io")
+        #expect(rules.canRepresentAsCommonScores(amount: 1_000))
     }
 }
 
@@ -1151,7 +1638,7 @@ struct TurnScoreRepresentabilityTests {
     @Test func sevenIsNotRepresentableForCardgamesIo() {
         let rules = ScoringProfile.profile(for: "farkle-cardgames-io")
         #expect(!rules.canRepresentAsCommonScores(amount: 7))
-        #expect(!TurnScoreRepresentability.canRepresent(7, denominations: rules.commonScorePresets().map(\.value)))
+        #expect(!TurnScoreRepresentability.canRepresent(7, denominations: rules.commonScoreDenominationValues()))
     }
 
     @Test func fiftyAndOneFiftyAreRepresentableForCardgamesIo() {
@@ -1179,5 +1666,235 @@ struct TurnScoreRepresentabilityTests {
                 "Preset \(preset.value) (\(preset.label)) should be representable"
             )
         }
+    }
+}
+
+struct PlayerRowLayoutMetricsTests {
+
+    @Test func twoPlayerProminentListFitsGenerousViewport() {
+        let height = PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: 2,
+            activeIndex: 0,
+            emphasizeActive: true,
+            dynamicTypeSize: .large
+        )
+        #expect(height <= 500)
+    }
+
+    @Test func sixPlayerProminentListExceedsSmallViewport() {
+        let height = PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: 6,
+            activeIndex: 0,
+            emphasizeActive: true,
+            dynamicTypeSize: .large
+        )
+        #expect(height > 300)
+    }
+
+    @Test func emphasizedListHeightIsIndependentOfActiveIndex() {
+        let firstActive = PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: 4,
+            activeIndex: 0,
+            emphasizeActive: true,
+            dynamicTypeSize: .large
+        )
+        let lastActive = PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: 4,
+            activeIndex: 3,
+            emphasizeActive: true,
+            dynamicTypeSize: .large
+        )
+        #expect(firstActive == lastActive)
+    }
+
+    @Test func emphasizedListIsTallerThanUniformList() {
+        let uniform = PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: 3,
+            activeIndex: 1,
+            emphasizeActive: false,
+            dynamicTypeSize: .large
+        )
+        let emphasized = PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: 3,
+            activeIndex: 1,
+            emphasizeActive: true,
+            dynamicTypeSize: .large
+        )
+        #expect(emphasized > uniform)
+    }
+}
+
+struct QuickPlayerSetupTests {
+
+    @Test func isUnchangedDefaultRosterTrueForFreshDefaults() {
+        let store = GameStore()
+        #expect(store.isUnchangedDefaultRoster)
+    }
+
+    @Test func isUnchangedDefaultRosterFalseAfterRename() {
+        var store = GameStore()
+        store.updatePlayer(at: 0, with: .init(name: "Alicia"))
+        #expect(!store.isUnchangedDefaultRoster)
+    }
+
+    @Test func isUnchangedDefaultRosterFalseWithCustomEmoji() {
+        var store = GameStore()
+        store.updatePlayer(at: 0, with: .init(avatarEmoji: .some("🎲")))
+        #expect(!store.isUnchangedDefaultRoster)
+    }
+
+    @Test func isUnchangedDefaultRosterFalseWithTwoPlayers() {
+        var store = GameStore()
+        store.removePlayer(at: 2)
+        #expect(!store.isUnchangedDefaultRoster)
+    }
+
+    @Test func clearAllPlayersEmptiesRosterPreGame() {
+        var store = GameStore()
+        store.clearAllPlayers()
+        #expect(store.players.isEmpty)
+        #expect(store.defaultRosterExemptions.isEmpty)
+        #expect(store.activePlayerIndex == 0)
+    }
+
+    @Test func clearAllPlayersBlockedInGame() {
+        var store = GameStore()
+        store.setPreset(500)
+        store.addToScore()
+        store.clearAllPlayers()
+        #expect(store.players.count == 3)
+    }
+
+    @Test func replaceRosterSetsPlayersWithAppearance() {
+        var store = GameStore()
+        let entries = [
+            GameStore.QuickSetupEntry(
+                name: "Jordan",
+                profileId: nil,
+                avatarEmoji: "🎯",
+                avatarPhotoFileName: nil,
+                avatarColorIndex: 0
+            ),
+            GameStore.QuickSetupEntry(
+                name: "Sam",
+                profileId: nil,
+                avatarEmoji: "⭐",
+                avatarPhotoFileName: nil,
+                avatarColorIndex: 1
+            ),
+        ]
+        store.replaceRoster(with: entries)
+        #expect(store.players.count == 2)
+        #expect(store.players[0].name == "Jordan")
+        #expect(store.players[0].avatarEmoji == "🎯")
+        #expect(store.players[1].avatarEmoji == "⭐")
+        #expect(store.defaultRosterExemptions.isEmpty)
+    }
+
+    @Test func replaceRosterRequiresAtLeastOnePlayer() {
+        var store = GameStore()
+        store.replaceRoster(with: [])
+        #expect(store.players.count == 3)
+    }
+
+    @Test func replaceRosterBlockedInGame() {
+        var store = GameStore()
+        store.setPreset(500)
+        store.addToScore()
+        store.replaceRoster(with: [
+            GameStore.QuickSetupEntry(
+                name: "Only",
+                profileId: nil,
+                avatarEmoji: nil,
+                avatarPhotoFileName: nil,
+                avatarColorIndex: 0
+            ),
+        ])
+        #expect(store.players.count == 3)
+    }
+
+    @Test func applyQuickSetupAssignsNamesAndClearsDefaults() {
+        var store = GameStore()
+        store.applyQuickSetup(names: ["Jordan", "Sam"], existingProfiles: [])
+        #expect(store.players.count == 2)
+        #expect(store.players[0].name == "Jordan")
+        #expect(store.players[1].name == "Sam")
+        #expect(store.players[0].avatarEmoji != nil)
+        #expect(!store.isUnchangedDefaultRoster)
+    }
+
+    @Test func applyQuickSetupReusesSavedProfileAppearance() {
+        let profile = PlayerProfile(name: "Jordan", avatarEmoji: "🏆", avatarColorIndex: 7)
+        var store = GameStore()
+        store.applyQuickSetup(names: ["Jordan"], existingProfiles: [profile])
+        #expect(store.players.count == 1)
+        #expect(store.players[0].avatarEmoji == "🏆")
+        #expect(store.players[0].avatarColorIndex == 7)
+        #expect(store.players[0].profileId == nil)
+    }
+
+    @Test func quickSetupSyncsToLibraryAndClearsExemptions() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("profiles-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let profileStore = PlayerProfileStore(persistence: PlayerProfilePersistence(fileURL: url))
+        var store = GameStore()
+        store.applyQuickSetup(names: ["Jordan", "Sam"], existingProfiles: [])
+
+        var players = store.players
+        _ = GameRosterProfileSync.sync(
+            players: &players,
+            profileStore: profileStore,
+            defaultRosterExemptions: store.defaultRosterExemptions
+        )
+        store.players = players
+
+        #expect(profileStore.profiles.count == 2)
+        #expect(store.players.allSatisfy { $0.profileId != nil })
+    }
+}
+
+struct PlayerAppearanceAssignmentTests {
+
+    @Test func assignAppearancesUsesProfileWhenNameMatches() {
+        let profile = PlayerProfile(name: "Jordan", avatarEmoji: "🏆", avatarColorIndex: 4)
+        let entries = PlayerAppearanceAssignment.assignAppearances(
+            for: ["Jordan"],
+            existingProfiles: [profile]
+        )
+        #expect(entries.count == 1)
+        #expect(entries[0].avatarEmoji == "🏆")
+        #expect(entries[0].avatarColorIndex == 4)
+        #expect(entries[0].profileId == profile.id)
+    }
+
+    @Test func assignAppearancesAssignsDistinctEmojisForNewNames() {
+        let entries = PlayerAppearanceAssignment.assignAppearances(
+            for: ["Jordan", "Sam", "Alex"],
+            existingProfiles: []
+        )
+        #expect(entries.count == 3)
+        let emojis = entries.compactMap(\.avatarEmoji)
+        #expect(Set(emojis).count == emojis.count)
+    }
+
+    @Test func assignAppearancesEmojiIsStableForSameName() {
+        let first = PlayerAppearanceAssignment.assignAppearances(
+            for: ["Jordan"],
+            existingProfiles: []
+        )
+        let second = PlayerAppearanceAssignment.assignAppearances(
+            for: ["Jordan"],
+            existingProfiles: []
+        )
+        #expect(first[0].avatarEmoji == second[0].avatarEmoji)
+    }
+
+    @Test func assignAppearancesSkipsEmptyNames() {
+        let entries = PlayerAppearanceAssignment.assignAppearances(
+            for: ["Jordan", "   ", ""],
+            existingProfiles: []
+        )
+        #expect(entries.count == 1)
     }
 }

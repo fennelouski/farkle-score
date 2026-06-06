@@ -116,6 +116,7 @@ extension PlayerEditorMode: Identifiable {
         switch self {
         case .addToGame: return "add"
         case .editGamePlayer(let i): return "edit-\(i)"
+        case .changeGamePlayer(let i): return "change-\(i)"
         case .createProfile: return "create-profile"
         case .editProfile(let p): return "profile-\(p.id.uuidString)"
         }

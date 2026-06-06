@@ -20,6 +20,10 @@ struct MainPanelView: View {
     @State private var showFullHistory = false
     @State private var showNewGameConfirmation = false
     @State private var selectedHistoryEntry: ScoreEntry?
+    @AppStorage(AppSettings.historyShowTimesStorageKey) private var historyShowTimes = true
+    @AppStorage(AppSettings.historyDisplayModeStorageKey) private var historyDisplayModeRaw = HistoryDisplayMode.table.rawValue
+    @State private var rowsShowingTotals: Set<Int> = []
+    @ScaledMetric(relativeTo: .title) private var turnHeaderAvatarSize: CGFloat = 48
 
     private var activeName: String {
         store.activePlayer?.name ?? "—"
@@ -72,7 +76,7 @@ struct MainPanelView: View {
             isPresented: $showNewGameConfirmation,
             title: "Start new game?",
             message: newGameConfirmationMessage,
-            confirmTitle: "NEW GAME",
+            confirmTitle: "New game",
             onConfirm: {
                 store.newGame()
                 if store.canUndoNewGame {
@@ -103,11 +107,7 @@ struct MainPanelView: View {
                 gamePhaseBanner
             }
 
-            ScoreInputView()
-
-            if !store.history.isEmpty {
-                recentSection
-            }
+            ScoreInputView(onShowHistory: { showFullHistory = true })
         }
     }
 
@@ -129,39 +129,63 @@ struct MainPanelView: View {
     }
 
     private var titleBlock: some View {
-        VStack(spacing: 8) {
-            Text(turnTitle)
-                .font(.system(.title, design: .rounded).bold())
-                .foregroundStyle(AppTheme.primaryText)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
-                .accessibilityHidden(true)
+        HStack(alignment: .center, spacing: 12) {
+            activePlayerAvatar
 
-            HStack(spacing: 4) {
-                Text(scoreTitle)
-                    .foregroundStyle(AppTheme.muted(contrast))
-                Text(AppTheme.formatScore(activeScore))
-                    .fontWeight(.bold)
-                    .foregroundStyle(AppTheme.accentBlue(contrast))
-                    .contentTransition(reduceMotion ? .identity : .numericText())
-                    .animation(reduceMotion ? nil : .snappy, value: activeScore)
+            VStack(spacing: 8) {
+                Text(turnTitle)
+                    .font(.system(.title, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityHidden(true)
+
+                HStack(spacing: 4) {
+                    Text(scoreTitle)
+                        .foregroundStyle(AppTheme.muted(contrast))
+                    Text(AppTheme.formatScore(activeScore))
+                        .fontWeight(.bold)
+                        .foregroundStyle(AppTheme.accentBlue(contrast))
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                        .animation(reduceMotion ? nil : .snappy, value: activeScore)
+                }
+                .font(.title3)
+                .accessibilityHidden(true)
             }
-            .font(.title3)
-            .accessibilityHidden(true)
         }
+        .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .center)
+        .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityTitleLabel)
         .accessibilityAddTraits(.isHeader)
     }
 
+    @ViewBuilder
+    private var activePlayerAvatar: some View {
+        if store.gamePhase != .finished, let player = store.activePlayer {
+            PlayerAvatarView(
+                player: player,
+                allPlayers: store.players,
+                listIndex: store.activePlayerIndex,
+                size: turnHeaderAvatarSize
+            )
+            .overlay {
+                Circle()
+                    .stroke(AppTheme.accentYellow(contrast), lineWidth: 3)
+                    .frame(width: turnHeaderAvatarSize + 4, height: turnHeaderAvatarSize + 4)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
     private var turnTitle: String {
         switch store.gamePhase {
         case .finished:
-            return "GAME COMPLETE"
+            return "Game complete"
         case .finalRound, .regular:
-            return "\(activeName.uppercased())'S TURN"
+            return "\(activeName)'s turn"
         }
     }
 
@@ -231,7 +255,7 @@ struct MainPanelView: View {
             }
             announce("Undid last score entry")
         } label: {
-            Label("UNDO LAST ENTRY", systemImage: "arrow.uturn.backward")
+            Label("Undo last entry", systemImage: "arrow.uturn.backward")
                 .font(.caption.weight(.semibold))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -251,94 +275,11 @@ struct MainPanelView: View {
         .accessibilityHint("Removes the most recent score entry")
     }
 
-    private var recentSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("RECENT ENTRIES")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.muted(contrast))
-                    .accessibilityLabel("Recent entries")
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Button {
-                    showFullHistory = true
-                } label: {
-                    Label("VIEW HISTORY", systemImage: "list.bullet")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .farkleButtonHitArea()
-                        .background(
-                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                                .stroke(AppTheme.stroke(contrast), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.muted(contrast))
-                .accessibilityLabel("View full history")
-                .accessibilityHint("Opens the complete list of score entries")
-            }
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(Array(recentEntries.enumerated()), id: \.element.id) { index, entry in
-                        if index > 0 {
-                            Divider()
-                                .frame(height: 36)
-                                .background(AppTheme.stroke(contrast))
-                                .padding(.horizontal, 8)
-                                .accessibilityHidden(true)
-                        }
-                        Button {
-                            presentHistoryEntryActions(for: entry)
-                        } label: {
-                            recentEntryCell(entry)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.vertical, 8)
-            }
-            .frame(minHeight: 56)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                    .fill(AppTheme.cardFill.opacity(0.5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                            .stroke(AppTheme.stroke(contrast))
-                    )
-            )
-            .accessibilityLabel("Recent entries list")
-        }
-    }
-
-    private var recentEntries: [ScoreEntry] {
-        Array(store.history.suffix(8).reversed())
-    }
-
-    private func recentEntryCell(_ entry: ScoreEntry) -> some View {
-        let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
-        let idx = store.playerColorIndex(for: entry.playerId) ?? 0
-        let color = AppTheme.avatarColor(index: idx, contrast: contrast)
-
-        return HStack(spacing: 6) {
-            Text(name)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
-            Text("+\(AppTheme.formatScore(entry.amount))")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(AppTheme.primaryText)
-            Text(entry.timestamp, style: .time)
-                .font(.caption2)
-                .foregroundStyle(AppTheme.muted(contrast))
-        }
-        .padding(.horizontal, 12)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
-        .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .shortened))
-        .accessibilityHint("Shows options to edit or delete this entry")
-        .accessibilityAddTraits(.isButton)
+    private var historyDisplayModeBinding: Binding<HistoryDisplayMode> {
+        Binding(
+            get: { HistoryDisplayMode(rawValue: historyDisplayModeRaw) ?? .table },
+            set: { historyDisplayModeRaw = $0.rawValue }
+        )
     }
 
     private var historySheet: some View {
@@ -352,7 +293,16 @@ struct MainPanelView: View {
                     }
                     .foregroundStyle(AppTheme.muted(contrast))
                 } else {
-                    historyList
+                    HistoryContentView(
+                        players: store.players,
+                        history: store.history,
+                        showTimes: $historyShowTimes,
+                        displayMode: historyDisplayModeBinding,
+                        rowsShowingTotals: $rowsShowingTotals,
+                        playerColorIndex: { store.playerColorIndex(for: $0) },
+                        onSelectEntry: presentHistoryEntryActions
+                    )
+                    .padding()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -372,43 +322,6 @@ struct MainPanelView: View {
         .frame(minWidth: 480, minHeight: 360)
 #endif
         .farkleHistorySheet()
-    }
-
-    private var historyList: some View {
-        List {
-            ForEach(Array(store.history.reversed())) { entry in
-                Button {
-                    presentHistoryEntryActions(for: entry)
-                } label: {
-                    historyRow(entry)
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(AppTheme.cardFill.opacity(0.85))
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func historyRow(_ entry: ScoreEntry) -> some View {
-        let name = store.players.first(where: { $0.id == entry.playerId })?.name ?? "?"
-        let idx = store.playerColorIndex(for: entry.playerId) ?? 0
-        return HStack {
-            Text(name)
-                .foregroundStyle(AppTheme.avatarColor(index: idx, contrast: contrast))
-            Spacer()
-            Text("+\(AppTheme.formatScore(entry.amount))")
-                .foregroundStyle(AppTheme.primaryText)
-            Text(entry.timestamp, format: .dateTime.hour().minute().second())
-                .font(.caption)
-                .foregroundStyle(AppTheme.muted(contrast))
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name) added \(AppTheme.spokenScore(entry.amount))")
-        .accessibilityValue(entry.timestamp.formatted(date: .omitted, time: .standard))
-        .accessibilityHint("Shows options to edit or delete this entry")
-        .accessibilityAddTraits(.isButton)
     }
 
     private func playerName(for playerId: UUID) -> String {
@@ -438,7 +351,9 @@ struct MainPanelView: View {
         let name = playerName(for: entry.playerId)
         guard store.prepareToEditHistoryEntry(id: entry.id) else { return }
         selectedHistoryEntry = nil
-        showFullHistory = false
+        if showFullHistory {
+            showFullHistory = false
+        }
         announce("Editing score for \(name). Adjust the turn score and add again.")
     }
 

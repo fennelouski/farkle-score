@@ -16,6 +16,7 @@ struct Farkle_Score_App: App {
 #endif
     @State private var gameStore: GameStore
     @State private var profileStore: PlayerProfileStore
+    @AppStorage(AppSettings.appearanceModeStorageKey) private var appearanceModeRaw = AppearanceMode.system.rawValue
     @Environment(\.scenePhase) private var scenePhase
     private let persistence = GameStorePersistence.default
 
@@ -37,9 +38,29 @@ struct Farkle_Score_App: App {
                 AppSettings.lastLocalPersistenceWrite = mtime
             }
             var players = store.players
-            if GameRosterProfileSync.sync(players: &players, profileStore: profiles) {
+            let reconcile = ProfileMaintenance.reconcile(
+                players: &players,
+                exemptions: store.defaultRosterExemptions,
+                profileStore: profiles,
+                persist: true
+            )
+            if reconcile.rosterChanged {
                 store.players = players
+            }
+            var rosterChanged = reconcile.rosterChanged
+            if GameRosterProfileSync.sync(
+                players: &players,
+                profileStore: profiles,
+                defaultRosterExemptions: store.defaultRosterExemptions
+            ) {
+                store.players = players
+                rosterChanged = true
+            }
+            if rosterChanged || !reconcile.removedProfileIds.isEmpty {
                 try? persistence.save(store.snapshot)
+            }
+            for removedId in reconcile.removedProfileIds {
+                Task { await CloudSyncController.deleteProfileFromCloud(id: removedId) }
             }
         }
 
@@ -52,6 +73,9 @@ struct Farkle_Score_App: App {
             ContentView()
                 .environment(gameStore)
                 .environment(profileStore)
+                .preferredColorScheme(
+                    (AppearanceMode(rawValue: appearanceModeRaw) ?? .system).preferredColorScheme
+                )
                 .task {
                     guard !ScreenshotMode.isEnabled else { return }
                     await CloudSyncController.bootstrapAfterLaunch(
@@ -69,6 +93,10 @@ struct Farkle_Score_App: App {
                             persistence: persistence
                         )
                     }
+                }
+                .onChange(of: gameStore.players) { _, _ in
+                    guard !ScreenshotMode.isEnabled else { return }
+                    persistGameStoreLocally()
                 }
 #if os(macOS)
                 .onAppear {
@@ -99,5 +127,12 @@ struct Farkle_Score_App: App {
                 }
             }
         }
+    }
+
+    private func persistGameStoreLocally() {
+        do {
+            try persistence.save(gameStore.snapshot)
+            AppSettings.lastLocalPersistenceWrite = Date()
+        } catch {}
     }
 }

@@ -34,8 +34,10 @@ struct GameRootView: View {
             }
         }
         .environment(\.farkleLayoutStyle, layoutStyle)
+        .padding(.top, layoutStyle == .phoneTabs ? 0 : FarkleLayoutMetrics.iPadTopContentInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)
+        .farkleRespectSafeAreaForContent()
         .farkleScreenBackground()
     }
 
@@ -51,8 +53,6 @@ struct GameRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(20)
         }
-        .safeAreaPadding(.horizontal, 12)
-        .safeAreaPadding(.vertical, 8)
     }
 
     private var compactLayout: some View {
@@ -63,19 +63,20 @@ struct GameRootView: View {
             }
         }
         .farkleVerticalSafeAreaFade()
-        .safeAreaPadding(.horizontal, 12)
-        .safeAreaPadding(.vertical, 8)
     }
 
     private var phoneTabLayout: some View {
         TabView {
             PhoneScoreTabView()
+                .farkleRespectSafeAreaTop()
+                .safeAreaPadding(.horizontal, 12)
                 .tabItem {
                     Label("Score", systemImage: "sum")
                 }
                 .accessibilityIdentifier("farkle.tab.score")
 
             PlayerListView()
+                .farkleRespectSafeAreaTop()
                 .tabItem {
                     Label("Players", systemImage: "person.2")
                 }

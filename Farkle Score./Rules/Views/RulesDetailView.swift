@@ -9,7 +9,16 @@ struct RulesDetailView: View {
     let metadata: RuleSetMetadata
 
     @Environment(\.colorSchemeContrast) private var contrast
+    @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
     @State private var loaded: RuleSet?
+
+    private var scoringPayload: ScoringPreferencesPayload {
+        ScoringPreferencesPayload.decode(from: scoringPreferencesJSON)
+    }
+
+    private var isBundledRulesetActive: Bool {
+        !scoringPayload.useCustomScoring && scoringPayload.templateRulesetId == metadata.id
+    }
 
     private var tocEntries: [(anchor: String, title: String)] {
         guard let set = loaded else { return [] }
@@ -38,8 +47,17 @@ struct RulesDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
 #endif
         .toolbar {
-            if let url = metadata.sourceURL {
+            if !isBundledRulesetActive {
                 ToolbarItem(placement: .primaryAction) {
+                    Button("Use this ruleset") {
+                        activateBundledRuleset()
+                    }
+                    .tint(AppTheme.accentBlue(contrast))
+                }
+            }
+
+            if let url = metadata.sourceURL {
+                ToolbarItem(placement: isBundledRulesetActive ? .primaryAction : .secondaryAction) {
                     Link(destination: url) {
                         Label("Source", systemImage: "safari")
                     }
@@ -107,5 +125,12 @@ struct RulesDetailView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func activateBundledRuleset() {
+        let payload = AppSettings.activateBundledRuleset(id: metadata.id)
+        if let str = try? payload.jsonEncodedString() {
+            scoringPreferencesJSON = str
+        }
     }
 }

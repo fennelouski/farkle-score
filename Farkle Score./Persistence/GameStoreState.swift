@@ -14,7 +14,7 @@
 import Foundation
 
 struct GameStoreState: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     var schemaVersion: Int
     var players: [Player]
@@ -24,6 +24,11 @@ struct GameStoreState: Codable, Equatable, Sendable {
     var gamePhase: GameStore.GamePhase
     var finalRoundPendingPlayerIDs: [UUID]
     var finalRoundTriggerPlayerID: UUID?
+    var defaultRosterExemptions: [DefaultRosterExemptionEntry]
+
+    var defaultRosterExemptionsDictionary: [UUID: String] {
+        defaultRosterExemptions.asDictionary()
+    }
 
     init(
         schemaVersion: Int = GameStoreState.currentSchemaVersion,
@@ -33,7 +38,8 @@ struct GameStoreState: Codable, Equatable, Sendable {
         autoAdvanceAfterScore: Bool,
         gamePhase: GameStore.GamePhase = .regular,
         finalRoundPendingPlayerIDs: [UUID] = [],
-        finalRoundTriggerPlayerID: UUID? = nil
+        finalRoundTriggerPlayerID: UUID? = nil,
+        defaultRosterExemptions: [DefaultRosterExemptionEntry] = []
     ) {
         self.schemaVersion = schemaVersion
         self.players = players
@@ -43,6 +49,7 @@ struct GameStoreState: Codable, Equatable, Sendable {
         self.gamePhase = gamePhase
         self.finalRoundPendingPlayerIDs = finalRoundPendingPlayerIDs
         self.finalRoundTriggerPlayerID = finalRoundTriggerPlayerID
+        self.defaultRosterExemptions = defaultRosterExemptions
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -54,6 +61,7 @@ struct GameStoreState: Codable, Equatable, Sendable {
         case gamePhase
         case finalRoundPendingPlayerIDs
         case finalRoundTriggerPlayerID
+        case defaultRosterExemptions
     }
 
     init(from decoder: Decoder) throws {
@@ -66,6 +74,7 @@ struct GameStoreState: Codable, Equatable, Sendable {
         gamePhase = try c.decodeIfPresent(GameStore.GamePhase.self, forKey: .gamePhase) ?? .regular
         finalRoundPendingPlayerIDs = try c.decodeIfPresent([UUID].self, forKey: .finalRoundPendingPlayerIDs) ?? []
         finalRoundTriggerPlayerID = try c.decodeIfPresent(UUID.self, forKey: .finalRoundTriggerPlayerID)
+        defaultRosterExemptions = try c.decodeIfPresent([DefaultRosterExemptionEntry].self, forKey: .defaultRosterExemptions) ?? []
     }
 
     func encode(to encoder: Encoder) throws {
@@ -78,6 +87,7 @@ struct GameStoreState: Codable, Equatable, Sendable {
         try c.encode(gamePhase, forKey: .gamePhase)
         try c.encode(finalRoundPendingPlayerIDs, forKey: .finalRoundPendingPlayerIDs)
         try c.encodeIfPresent(finalRoundTriggerPlayerID, forKey: .finalRoundTriggerPlayerID)
+        try c.encode(defaultRosterExemptions, forKey: .defaultRosterExemptions)
     }
 
     nonisolated static func == (lhs: GameStoreState, rhs: GameStoreState) -> Bool {
@@ -89,6 +99,7 @@ struct GameStoreState: Codable, Equatable, Sendable {
             && lhs.gamePhase == rhs.gamePhase
             && lhs.finalRoundPendingPlayerIDs == rhs.finalRoundPendingPlayerIDs
             && lhs.finalRoundTriggerPlayerID == rhs.finalRoundTriggerPlayerID
+            && lhs.defaultRosterExemptions == rhs.defaultRosterExemptions
     }
 }
 

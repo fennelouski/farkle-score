@@ -10,9 +10,10 @@ import UIKit
 #endif
 
 struct ScoreInputView: View {
+    var onShowHistory: (() -> Void)? = nil
+
     @Environment(GameStore.self) private var store
     @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
-    @AppStorage(AppSettings.showDicePreviewStorageKey) private var showDicePreview = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
@@ -23,6 +24,7 @@ struct ScoreInputView: View {
     @State private var showUnusualScoreConfirmation = false
     @State private var pendingUnusualAmount: Int?
     @State private var activeInputPanel: ScoreInputPanel = .keypad
+    @State private var showRulesLibrary = false
 
     @Environment(\.farkleLayoutStyle) private var layoutStyle
 
@@ -43,19 +45,17 @@ struct ScoreInputView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            scoreInputContent
-
-            if showDicePreview {
-                dicePreviewSection
-            }
-        }
+        scoreInputContent
         .disabled(scoringDisabled)
         .opacity(scoringDisabled ? 0.5 : 1)
         .overlay {
             if showUnusualScoreConfirmation, let amount = pendingUnusualAmount {
                 unusualScoreOverlay(amount: amount)
             }
+        }
+        .sheet(isPresented: $showRulesLibrary) {
+            RulesLibraryView()
+                .farkleRulesSheet()
         }
     }
 
@@ -82,7 +82,7 @@ struct ScoreInputView: View {
 
     private var phoneScoreInputContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("ENTER TURN SCORE")
+            Text("Enter turn score")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted(contrast))
                 .accessibilityLabel("Enter turn score")
@@ -114,10 +114,19 @@ struct ScoreInputView: View {
                 }
             }
 
-            AddToScoreButton(accentColor: activePlayerAccentColor) {
+            AddToScoreButton(
+                player: store.activePlayer,
+                allPlayers: store.players,
+                listIndex: store.activePlayerIndex,
+                accentColor: activePlayerAccentColor
+            ) {
                 requestAddToScore()
             }
             .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+
+            if !store.history.isEmpty, let onShowHistory {
+                ShowHistoryButton(action: onShowHistory)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -126,10 +135,7 @@ struct ScoreInputView: View {
 
     private var phoneCommonScoresPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Rules: \(activeRulesTitle)")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.muted(contrast).opacity(0.9))
-                .accessibilityLabel("Scoring rules: \(activeRulesTitle)")
+            commonScoresHeader
 
             CommonScoreGridView(
                 presets: scoringProfile.commonScorePresets(),
@@ -146,33 +152,9 @@ struct ScoreInputView: View {
         }
     }
 
-    private var dicePreviewSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("DICE PREVIEW")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.muted(contrast))
-                .accessibilityLabel("Dice preview")
-                .accessibilityAddTraits(.isHeader)
-
-            RollPreviewView(rules: scoringProfile) { value, label, diceUsed, faceCounts in
-                store.appendTurnEntry(
-                    value: value,
-                    label: label,
-                    kind: .combination,
-                    diceCount: diceUsed,
-                    faceCounts: faceCounts
-                )
-            }
-            .padding(.top, 12)
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background { cardBackground() }
-    }
-
     private var keypadColumn: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("ENTER TURN SCORE")
+            Text("Enter turn score")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted(contrast))
                 .accessibilityLabel("Enter turn score")
@@ -191,10 +173,19 @@ struct ScoreInputView: View {
                 onBackspace: { store.backspace() }
             )
 
-            AddToScoreButton(accentColor: activePlayerAccentColor) {
+            AddToScoreButton(
+                player: store.activePlayer,
+                allPlayers: store.players,
+                listIndex: store.activePlayerIndex,
+                accentColor: activePlayerAccentColor
+            ) {
                 requestAddToScore()
             }
             .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+
+            if !store.history.isEmpty, let onShowHistory {
+                ShowHistoryButton(action: onShowHistory)
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -216,18 +207,33 @@ struct ScoreInputView: View {
         return RulesLibrary.metadata(id: scoringPayload.templateRulesetId)?.localizedTitle ?? scoringPayload.templateRulesetId
     }
 
-    private var commonScoresColumn: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("COMMON SCORES")
+    private var commonScoresHeader: some View {
+        HStack {
+            Text("Common scores")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted(contrast))
                 .accessibilityLabel("Common scores")
                 .accessibilityAddTraits(.isHeader)
 
-            Text("Rules: \(activeRulesTitle)")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.muted(contrast).opacity(0.9))
-                .accessibilityLabel("Scoring rules: \(activeRulesTitle)")
+            Spacer(minLength: 8)
+
+            Button {
+                showRulesLibrary = true
+            } label: {
+                Image(systemName: "book.closed")
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.accentYellow(contrast))
+                    .padding(8)
+                    .farkleButtonHitArea()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Rule references")
+        }
+    }
+
+    private var commonScoresColumn: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            commonScoresHeader
 
             CommonScoreGridView(
                 presets: scoringProfile.commonScorePresets(),

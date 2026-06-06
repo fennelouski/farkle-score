@@ -22,7 +22,8 @@ extension GameStore {
             autoAdvanceAfterScore: autoAdvanceAfterScore,
             gamePhase: gamePhase,
             finalRoundPendingPlayerIDs: finalRoundPendingPlayerIDs,
-            finalRoundTriggerPlayerID: finalRoundTriggerPlayerID
+            finalRoundTriggerPlayerID: finalRoundTriggerPlayerID,
+            defaultRosterExemptions: defaultRosterExemptions.asEntries()
         )
     }
 
@@ -39,6 +40,10 @@ extension GameStore {
         gamePhase = state.gamePhase
         finalRoundPendingPlayerIDs = state.finalRoundPendingPlayerIDs
         finalRoundTriggerPlayerID = state.finalRoundTriggerPlayerID
+        defaultRosterExemptions = state.defaultRosterExemptionsDictionary
+        if defaultRosterExemptions.isEmpty {
+            defaultRosterExemptions = DefaultRosterExemption.inferExemptions(from: players)
+        }
         clearInput()
     }
 }

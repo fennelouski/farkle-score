@@ -32,7 +32,7 @@ struct PlayerProfile: Identifiable, Equatable, Sendable {
     }
 
     /// Must match `AppTheme.playerAvatarColors.count` (verified in unit tests).
-    nonisolated static let avatarColorCount = 10
+    nonisolated static let avatarColorCount = 50
 
     nonisolated static func clampedColorIndex(_ index: Int) -> Int {
         let count = avatarColorCount

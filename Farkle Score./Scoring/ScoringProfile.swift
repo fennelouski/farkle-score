@@ -213,9 +213,15 @@ extension ScoringProfile {
             items.append(CommonScorePreset(value: threePairs.points, label: "Three pairs"))
         }
 
-        // Dedupe by value, keep first label (stable order above).
+        return items
+    }
+
+    /// Unique positive preset values for keypad representability checks (grid keeps all labels).
+    nonisolated func commonScoreDenominationValues() -> [Int] {
         var seen = Set<Int>()
-        return items.filter { seen.insert($0.value).inserted }
+        return commonScorePresets()
+            .map(\.value)
+            .filter { $0 > 0 && seen.insert($0).inserted }
     }
 
     nonisolated private func fourOfKindZilch(face: Int) -> Int {
@@ -226,7 +232,7 @@ extension ScoringProfile {
     nonisolated func canRepresentAsCommonScores(amount: Int) -> Bool {
         TurnScoreRepresentability.canRepresent(
             amount,
-            denominations: commonScorePresets().map(\.value)
+            denominations: commonScoreDenominationValues()
         )
     }
 }

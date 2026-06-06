@@ -132,7 +132,11 @@ enum CloudSyncController {
         persistence: GameStorePersistence
     ) {
         var players = store.players
-        if GameRosterProfileSync.sync(players: &players, profileStore: profileStore) {
+        if GameRosterProfileSync.sync(
+            players: &players,
+            profileStore: profileStore,
+            defaultRosterExemptions: store.defaultRosterExemptions
+        ) {
             store.players = players
             try? persistence.save(store.snapshot)
         }

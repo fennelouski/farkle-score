@@ -35,8 +35,8 @@ final class ScreenshotTests: XCTestCase {
         UITestNavigation.scrollToRevealScoreControlsIfNeeded(app)
         XCTAssertTrue(
             waitForAnyElement(
-                identifiers: ["farkle.keypad.digit.5", "farkle.keypad.digit.1"],
-                labels: ["Add to score", "Turn score input"],
+                identifiers: ["farkle.keypad.digit.5", "farkle.keypad.digit.1", "farkle.addToScore"],
+                labels: ["Turn score input"],
                 timeout: 10
             ),
             "Score capture should wait for keypad/score controls."
@@ -49,7 +49,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(
             waitForAnyElement(
                 identifiers: [],
-                labels: ["Undo last entry", "Current Score:", "TURN"],
+                labels: ["Undo last entry"],
                 timeout: 8
             ),
             "Mid-game capture should wait for main panel content."
@@ -102,8 +102,8 @@ final class ScreenshotTests: XCTestCase {
 
         XCTAssertTrue(
             waitForAnyElement(
-                identifiers: [],
-                labels: ["Rules", "View rules source"],
+                identifiers: ["farkle.rules.activeRulesetMenu"],
+                labels: ["Rules", "Your rules", "View rules source"],
                 timeout: 8
             ),
             "Rules capture should wait for rules UI."

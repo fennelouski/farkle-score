@@ -6,7 +6,7 @@
 import Foundation
 
 /// Persists custom avatar photos under Application Support (local-only; not synced to CloudKit).
-enum AvatarImageStore {
+nonisolated enum AvatarImageStore {
     private static let subdirectory = "avatar-images"
 
     static func directoryURL() throws -> URL {

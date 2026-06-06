@@ -44,6 +44,13 @@ struct PlayerAvatarColorPicker: View {
         let names = [
             "Blue", "Green", "Purple", "Orange", "Cyan", "Coral",
             "Gold", "Pink", "Slate", "Lime",
+            "Red", "Teal", "Indigo", "Amber", "Rose", "Mint",
+            "Sky", "Wine", "Forest", "Lavender", "Copper", "Navy",
+            "Peach", "Chartreuse", "Magenta", "Steel",
+            "Crimson", "Emerald", "Violet", "Tangerine", "Aqua", "Salmon",
+            "Mustard", "Fuchsia", "Charcoal", "Olive", "Ruby", "Jade",
+            "Plum", "Apricot", "Turquoise", "Maroon", "Pine", "Lilac",
+            "Bronze", "Cobalt", "Butter", "Limeade", "Orchid", "Graphite",
         ]
         let name = index < names.count ? names[index] : "Color \(index + 1)"
         return "Avatar color, \(name)"

@@ -8,11 +8,13 @@ import Foundation
 /// Keeps every in-game roster player linked to a saved `PlayerProfile` (source of truth: roster appearance).
 enum GameRosterProfileSync {
     /// Ensures each roster row has a `profileId` and matching library entry; adopts photos to canonical filenames.
+    /// Default roster players (Alice, Bob, Chris) are skipped while their names remain unchanged.
     /// - Returns: Whether `players` was mutated (new links or photo renames).
     @discardableResult
     static func sync(
         players: inout [Player],
         profileStore: PlayerProfileStore,
+        defaultRosterExemptions: [UUID: String] = [:],
         persist: Bool = true
     ) -> Bool {
         var rosterChanged = false
@@ -21,6 +23,7 @@ enum GameRosterProfileSync {
                 player: &players[index],
                 listIndex: index,
                 profileStore: profileStore,
+                defaultRosterExemptions: defaultRosterExemptions,
                 persist: false
             ) {
                 rosterChanged = true
@@ -37,12 +40,33 @@ enum GameRosterProfileSync {
         player: inout Player,
         listIndex: Int,
         profileStore: PlayerProfileStore,
+        defaultRosterExemptions: [UUID: String],
         persist: Bool
     ) -> Bool {
+        if DefaultRosterExemption.isExempt(player: player, exemptions: defaultRosterExemptions) {
+            guard player.profileId != nil else { return false }
+            player.profileId = nil
+            return true
+        }
+
         var rosterChanged = false
+        let linkedIds = Set([player.profileId].compactMap { $0 })
+
         let profileId: UUID
         if let existing = player.profileId {
             profileId = existing
+        } else if let byName = profileStore.profile(named: player.name) {
+            profileId = byName.id
+            player.profileId = profileId
+            rosterChanged = true
+        } else if let canonical = ProfileDedup.canonicalProfile(
+            forName: player.name,
+            in: profileStore.profiles,
+            linkedProfileIds: linkedIds
+        ) {
+            profileId = canonical.id
+            player.profileId = profileId
+            rosterChanged = true
         } else {
             profileId = UUID()
             player.profileId = profileId

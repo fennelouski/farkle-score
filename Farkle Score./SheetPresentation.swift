@@ -5,6 +5,21 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
+/// Extra top inset on iPad where the status bar overlaps content.
+enum FarkleLayoutMetrics {
+    static var iPadTopContentInset: CGFloat {
+#if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad ? 20 : 0
+#else
+        0
+#endif
+    }
+}
+
 extension View {
     /// Shared sheet chrome for iPhone and iPad (detents + drag indicator for multitasking).
     @ViewBuilder
@@ -46,6 +61,24 @@ extension View {
         background {
             AppTheme.background
                 .ignoresSafeArea()
+        }
+    }
+
+    /// Horizontal and bottom padding beyond the system safe area.
+    func farkleRespectSafeAreaForContent(
+        horizontalExtra: CGFloat = 12,
+        bottomExtra: CGFloat = 24
+    ) -> some View {
+        safeAreaPadding(.horizontal, horizontalExtra)
+            .safeAreaPadding(.bottom, bottomExtra)
+    }
+
+    /// Top safe area only (e.g. tab content where the tab bar handles the bottom inset).
+    func farkleRespectSafeAreaTop(_ extra: CGFloat = 16) -> some View {
+        safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear
+                .frame(height: extra)
+                .accessibilityHidden(true)
         }
     }
 

@@ -10,7 +10,10 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
     @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
-    @AppStorage(AppSettings.showDicePreviewStorageKey) private var showDicePreview = false
+    @AppStorage(AppSettings.appearanceModeStorageKey) private var appearanceModeRaw = AppearanceMode.system.rawValue
+    @AppStorage(AppSettings.showStandingBadgesStorageKey) private var showStandingBadges = true
+    @AppStorage(AppSettings.showStandingSecondThirdStorageKey) private var showStandingSecondThird = false
+    @AppStorage(AppSettings.showStandingFourthPlusStorageKey) private var showStandingFourthPlus = false
     @State private var showRulesLibrary = false
     @State private var showCustomScoringEditor = false
 
@@ -84,6 +87,54 @@ struct SettingsView: View {
     private var formBody: some View {
         Form {
             Section {
+                Picker("Appearance", selection: $appearanceModeRaw) {
+                    ForEach(AppearanceMode.allCases) { mode in
+                        Text(mode.localizedTitle).tag(mode.rawValue)
+                    }
+                }
+                .tint(AppTheme.accentBlue(contrast))
+                .accessibilityHint("Chooses light mode, dark mode, or follows your device setting")
+
+                Text("System follows your device's light or dark setting.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.muted(contrast))
+            } header: {
+                Text("Appearance")
+            }
+
+            Section {
+                Toggle("Show standing badges", isOn: $showStandingBadges)
+                    .tint(AppTheme.accentBlue(contrast))
+                    .accessibilityHint(
+                        "When on, a crown appears on the first-place player's name in the player list"
+                    )
+
+                if showStandingBadges {
+                    Toggle("Show 2nd and 3rd place", isOn: $showStandingSecondThird)
+                        .tint(AppTheme.accentBlue(contrast))
+                        .accessibilityHint(
+                            "When on, silver and bronze medals appear on 2nd- and 3rd-place player names"
+                        )
+
+                    if showStandingSecondThird {
+                        Toggle("Show 4th place and below", isOn: $showStandingFourthPlus)
+                            .tint(AppTheme.accentBlue(contrast))
+                            .accessibilityHint(
+                                "When on, circled rank numbers appear on player names from 4th place down"
+                            )
+                    }
+                }
+
+                Text(
+                    "Badges reflect current scores. The crown shows for 1st place when standing badges are on; medals and rank numbers are optional."
+                )
+                .font(.footnote)
+                .foregroundStyle(AppTheme.muted(contrast))
+            } header: {
+                Text("Players")
+            }
+
+            Section {
                 Picker("Scoring ruleset", selection: templateRulesetBinding) {
                     ForEach(RulesLibrary.allMetadata) { meta in
                         Text(meta.localizedTitle).tag(meta.id)
@@ -95,7 +146,7 @@ struct SettingsView: View {
 
                 Toggle("Custom scoring", isOn: useCustomScoringBinding)
                     .tint(AppTheme.accentBlue(contrast))
-                    .accessibilityHint("When on, keypad and optional dice preview use your custom point table instead of the selected ruleset")
+                    .accessibilityHint("When on, keypad and common scores use your custom point table instead of the selected ruleset")
 
                 Button {
                     showCustomScoringEditor = true
@@ -132,16 +183,6 @@ struct SettingsView: View {
                 .accessibilityLabel("Rule references")
                 .accessibilityHint("Opens bundled rule references")
 
-                Toggle("Show dice preview", isOn: $showDicePreview)
-                    .tint(AppTheme.accentBlue(contrast))
-                    .accessibilityHint(
-                        "When on, score entry includes dice you can set to see max points for a roll"
-                    )
-
-                Text("Optional. Tap dice to preview scoring; most games only need the keypad and common scores.")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.muted(contrast))
-
                 Toggle("Show auto-advance turn", isOn: $showAutoAdvanceTurnOption)
                     .tint(AppTheme.accentBlue(contrast))
                     .accessibilityHint(
@@ -166,7 +207,7 @@ struct SettingsView: View {
                     )
                     .tint(AppTheme.accentBlue(contrast))
                     .accessibilityHint(
-                        "When on, light taps are felt when using the keypad, quick scores, and optional dice preview"
+                        "When on, light taps are felt when using the keypad and quick scores"
                     )
                 } header: {
                     Text("Feedback")
@@ -234,9 +275,10 @@ struct SettingsView: View {
             get: { scoringPayload.templateRulesetId },
             set: { newId in
                 var p = scoringPayload
-                p.templateRulesetId = newId
-                if !p.useCustomScoring {
-                    p.custom = CustomScoringValues(from: ScoringProfile.profile(for: newId))
+                if p.useCustomScoring {
+                    p.templateRulesetId = newId
+                } else {
+                    p.activateBundledRuleset(id: newId)
                 }
                 commitScoringPayload(p)
             }
@@ -248,9 +290,11 @@ struct SettingsView: View {
             get: { scoringPayload.useCustomScoring },
             set: { new in
                 var p = scoringPayload
-                p.useCustomScoring = new
                 if new {
+                    p.useCustomScoring = true
                     p.custom = CustomScoringValues(from: ScoringProfile.profile(for: p.templateRulesetId))
+                } else {
+                    p.activateBundledRuleset(id: p.templateRulesetId)
                 }
                 commitScoringPayload(p)
             }

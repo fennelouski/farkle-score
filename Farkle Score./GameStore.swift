@@ -9,7 +9,7 @@ import Observation
 @Observable
 final class GameStore {
     private static let maxInputDigits = 9
-    private static let minPlayers = 2
+    private static let minPlayers = 1
     private static let maxPlayers = 6
     static let targetScore = 10_000
 
@@ -28,6 +28,8 @@ final class GameStore {
     var gamePhase: GamePhase
     var finalRoundPendingPlayerIDs: [UUID]
     var finalRoundTriggerPlayerID: UUID?
+    /// Original default roster player IDs mapped to their default names; persisted across sessions.
+    var defaultRosterExemptions: [UUID: String]
 
     /// Snapshot taken immediately before the most recent `newGame()`; session-only (not persisted).
     private var newGameUndoSnapshot: GameStoreState?
@@ -41,7 +43,8 @@ final class GameStore {
         autoAdvanceAfterScore: Bool = false,
         gamePhase: GamePhase = .regular,
         finalRoundPendingPlayerIDs: [UUID] = [],
-        finalRoundTriggerPlayerID: UUID? = nil
+        finalRoundTriggerPlayerID: UUID? = nil,
+        defaultRosterExemptions: [UUID: String]? = nil
     ) {
         self.players = players
         self.activePlayerIndex = min(activePlayerIndex, max(0, players.count - 1))
@@ -52,6 +55,8 @@ final class GameStore {
         self.gamePhase = gamePhase
         self.finalRoundPendingPlayerIDs = finalRoundPendingPlayerIDs
         self.finalRoundTriggerPlayerID = finalRoundTriggerPlayerID
+        self.defaultRosterExemptions = defaultRosterExemptions
+            ?? DefaultRosterExemption.inferExemptions(from: players)
         reconcileFinalRoundPendingPlayers()
         if self.gamePhase == .finished, !self.finalRoundPendingPlayerIDs.isEmpty {
             self.gamePhase = .finalRound
@@ -127,10 +132,96 @@ final class GameStore {
         players.count > Self.minPlayers
     }
 
+    /// True when the roster is still the untouched Alice / Bob / Chris defaults.
+    var isUnchangedDefaultRoster: Bool {
+        guard players.count == DefaultRosterExemption.defaultNames.count else { return false }
+        let defaultNameSet = Set(DefaultRosterExemption.defaultNames.map {
+            ProfileDedup.normalizedName($0)
+        })
+        let rosterNames = Set(players.map { ProfileDedup.normalizedName($0.name) })
+        guard rosterNames == defaultNameSet else { return false }
+        guard players.allSatisfy({
+            DefaultRosterExemption.isExempt(player: $0, exemptions: defaultRosterExemptions)
+        }) else { return false }
+        return players.allSatisfy {
+            $0.avatarEmoji == nil
+                && $0.avatarPhotoFileName == nil
+                && $0.profileId == nil
+                && $0.avatarColorIndex == nil
+        }
+    }
+
+    struct QuickSetupEntry: Sendable, Equatable {
+        var name: String
+        var profileId: UUID?
+        var avatarEmoji: String?
+        var avatarPhotoFileName: String?
+        var avatarColorIndex: Int
+    }
+
+    func clearAllPlayers() {
+        guard !isGameInProgress else { return }
+        players.removeAll()
+        defaultRosterExemptions.removeAll()
+        activePlayerIndex = 0
+        finalRoundPendingPlayerIDs.removeAll()
+        if finalRoundTriggerPlayerID != nil {
+            finalRoundTriggerPlayerID = nil
+        }
+        if gamePhase == .finalRound || gamePhase == .finished {
+            gamePhase = .regular
+        }
+    }
+
+    func replaceRoster(with entries: [QuickSetupEntry]) {
+        guard !isGameInProgress else { return }
+        guard entries.count >= Self.minPlayers, entries.count <= Self.maxPlayers else { return }
+
+        var newPlayers: [Player] = []
+        for entry in entries.prefix(Self.maxPlayers) {
+            var photoName = entry.avatarPhotoFileName
+            if let profileId = entry.profileId,
+               let adopted = try? AvatarImageStore.adoptPhotoForProfile(
+                   profileId: profileId,
+                   existingFileName: entry.avatarPhotoFileName
+               ) {
+                photoName = adopted
+            }
+            newPlayers.append(Player(
+                name: entry.name,
+                score: 0,
+                avatarEmoji: entry.avatarEmoji,
+                avatarPhotoFileName: photoName,
+                profileId: entry.profileId,
+                avatarColorIndex: entry.avatarColorIndex
+            ))
+        }
+
+        players = newPlayers
+        defaultRosterExemptions.removeAll()
+        activePlayerIndex = 0
+        finalRoundPendingPlayerIDs.removeAll()
+        finalRoundTriggerPlayerID = nil
+        gamePhase = .regular
+        reconcileFinalRoundPendingPlayers()
+    }
+
+    func applyQuickSetup(names: [String], existingProfiles: [PlayerProfile]) {
+        guard !isGameInProgress else { return }
+        let trimmed = names
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !trimmed.isEmpty, trimmed.count <= Self.maxPlayers else { return }
+        let entries = PlayerAppearanceAssignment.assignAppearances(
+            for: trimmed,
+            existingProfiles: existingProfiles
+        )
+        replaceRoster(with: entries)
+    }
+
     func selectPlayer(at index: Int) {
         guard players.indices.contains(index) else { return }
         activePlayerIndex = index
-        clearTurnInput()
     }
 
     var isTurnBuilderActive: Bool {
@@ -440,6 +531,27 @@ final class GameStore {
         reconcileFinalRoundPendingPlayers()
     }
 
+    func movePlayers(fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard !isGameInProgress, players.count > 1, !source.isEmpty else { return }
+        guard players.indices.contains(activePlayerIndex) else { return }
+
+        let activeID = players[activePlayerIndex].id
+        var revised = players
+        var target = destination
+        let sortedSources = source.sorted()
+        let movedElements = sortedSources.map { revised[$0] }
+        for index in sortedSources.reversed() {
+            revised.remove(at: index)
+        }
+        for index in sortedSources where index < destination {
+            target -= 1
+        }
+        revised.insert(contentsOf: movedElements, at: target)
+
+        players = revised
+        activePlayerIndex = players.firstIndex(where: { $0.id == activeID }) ?? 0
+    }
+
     func removePlayer(at index: Int) {
         guard canRemovePlayerDownToMinimum, players.indices.contains(index) else { return }
         let removedId = players[index].id
@@ -457,6 +569,65 @@ final class GameStore {
             activePlayerIndex -= 1
         } else if players[activePlayerIndex].id == removedId {
             activePlayerIndex = min(activePlayerIndex, players.count - 1)
+        }
+    }
+
+    /// Swaps the player at `index` for a different identity while keeping score, turn slot, and history id.
+    func replacePlayer(at index: Int, from profile: PlayerProfile) {
+        guard players.indices.contains(index) else { return }
+        guard isProfileAvailableForChange(profile.id, replacingAt: index) else { return }
+
+        var photoName = profile.avatarPhotoFileName
+        if let adopted = try? AvatarImageStore.adoptPhotoForProfile(
+            profileId: profile.id,
+            existingFileName: profile.avatarPhotoFileName
+        ) {
+            photoName = adopted
+        }
+
+        let existing = players[index]
+        players[index] = Player(
+            id: existing.id,
+            name: profile.name,
+            score: existing.score,
+            avatarEmoji: profile.avatarEmoji,
+            avatarPhotoFileName: photoName,
+            profileId: profile.id,
+            avatarColorIndex: profile.avatarColorIndex
+        )
+        reconcileFinalRoundPendingPlayers()
+    }
+
+    func replacePlayer(
+        at index: Int,
+        name: String?,
+        avatarEmoji: String? = nil,
+        avatarPhotoFileName: String? = nil,
+        avatarColorIndex: Int? = nil
+    ) {
+        guard players.indices.contains(index) else { return }
+        let existing = players[index]
+        let label = name?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? name!.trimmingCharacters(in: .whitespacesAndNewlines)
+            : existing.name
+        let colorIdx = avatarColorIndex ?? existing.effectiveAvatarColorIndex(listIndex: index)
+        players[index] = Player(
+            id: existing.id,
+            name: label,
+            score: existing.score,
+            avatarEmoji: avatarEmoji,
+            avatarPhotoFileName: avatarPhotoFileName,
+            profileId: nil,
+            avatarColorIndex: colorIdx
+        )
+        reconcileFinalRoundPendingPlayers()
+    }
+
+    func isProfileAvailableForChange(_ profileId: UUID, replacingAt index: Int) -> Bool {
+        guard players.indices.contains(index) else { return false }
+        if players[index].profileId == profileId { return false }
+        return !players.enumerated().contains { slot, player in
+            slot != index && player.profileId == profileId
         }
     }
 

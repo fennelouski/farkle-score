@@ -17,12 +17,22 @@ enum AppSettings {
         nonisolated static let activeRuleSetId = "farkle.activeRuleSetId"
         nonisolated static let scoringPreferencesJSON = "farkle.scoringPreferencesJSON"
         nonisolated static let lastScoringPreferencesWrite = "farkle.lastScoringPreferencesWrite"
-        /// Light impact haptics on keypad, presets, and dice preview (default on when unset).
+        /// Light impact haptics on keypad and presets (default on when unset).
         nonisolated static let hapticsEnabled = "farkle.hapticsEnabled"
         /// Whether the player list shows the Auto-advance turn toggle (default off when unset).
         nonisolated static let showAutoAdvanceTurnOption = "farkle.showAutoAdvanceTurnOption"
-        /// Whether score entry shows the interactive dice preview (default off when unset).
-        nonisolated static let showDicePreview = "farkle.showDicePreview"
+        /// App appearance: system, light, or dark (default system when unset).
+        nonisolated static let appearanceMode = "farkle.appearanceMode"
+        /// Show timestamps on history score entries (default on when unset).
+        nonisolated static let historyShowTimes = "farkle.historyShowTimes"
+        /// History layout: table or list (default table when unset).
+        nonisolated static let historyDisplayMode = "farkle.historyDisplayMode"
+        /// Standing badges on player names (crown for 1st; default on when unset).
+        nonisolated static let showStandingBadges = "farkle.showStandingBadges"
+        /// Silver and bronze medals for 2nd and 3rd place (default off when unset).
+        nonisolated static let showStandingSecondThird = "farkle.showStandingSecondThird"
+        /// Circled rank digits for 4th place and below (default off when unset).
+        nonisolated static let showStandingFourthPlus = "farkle.showStandingFourthPlus"
     }
 
     /// UserDefaults key for `@AppStorage` — must match `Key.activeRuleSetId` (template ruleset mirror).
@@ -35,7 +45,17 @@ enum AppSettings {
 
     nonisolated static let showAutoAdvanceTurnOptionStorageKey = Key.showAutoAdvanceTurnOption
 
-    nonisolated static let showDicePreviewStorageKey = Key.showDicePreview
+    nonisolated static let appearanceModeStorageKey = Key.appearanceMode
+
+    nonisolated static let historyShowTimesStorageKey = Key.historyShowTimes
+
+    nonisolated static let historyDisplayModeStorageKey = Key.historyDisplayMode
+
+    nonisolated static let showStandingBadgesStorageKey = Key.showStandingBadges
+
+    nonisolated static let showStandingSecondThirdStorageKey = Key.showStandingSecondThird
+
+    nonisolated static let showStandingFourthPlusStorageKey = Key.showStandingFourthPlus
 
     /// When true, full `GameStoreState` is mirrored to CloudKit for resume on another device.
     nonisolated static var activeRuleSetId: String {
@@ -65,10 +85,52 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.showAutoAdvanceTurnOption) }
     }
 
-    /// When true, score entry includes the dice preview for max points on a roll (default hidden).
-    nonisolated static var showDicePreview: Bool {
-        get { defaults.bool(forKey: Key.showDicePreview) }
-        set { defaults.set(newValue, forKey: Key.showDicePreview) }
+    /// App appearance override. Unset key defaults to `.system`.
+    nonisolated static var appearanceMode: AppearanceMode {
+        get {
+            guard let raw = defaults.string(forKey: Key.appearanceMode) else { return .system }
+            return AppearanceMode(rawValue: raw) ?? .system
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.appearanceMode) }
+    }
+
+    /// When true, history cells and list rows show entry timestamps. Unset key defaults to `true`.
+    nonisolated static var historyShowTimes: Bool {
+        get {
+            if defaults.object(forKey: Key.historyShowTimes) == nil { return true }
+            return defaults.bool(forKey: Key.historyShowTimes)
+        }
+        set { defaults.set(newValue, forKey: Key.historyShowTimes) }
+    }
+
+    /// History layout mode. Unset key defaults to `.table`.
+    nonisolated static var historyDisplayMode: HistoryDisplayMode {
+        get {
+            guard let raw = defaults.string(forKey: Key.historyDisplayMode) else { return .table }
+            return HistoryDisplayMode(rawValue: raw) ?? .table
+        }
+        set { defaults.set(newValue.rawValue, forKey: Key.historyDisplayMode) }
+    }
+
+    /// When true, the player list decorates names with standing badges (crown for 1st by default).
+    nonisolated static var showStandingBadges: Bool {
+        get {
+            if defaults.object(forKey: Key.showStandingBadges) == nil { return true }
+            return defaults.bool(forKey: Key.showStandingBadges)
+        }
+        set { defaults.set(newValue, forKey: Key.showStandingBadges) }
+    }
+
+    /// When true, 2nd and 3rd place medals appear on player names (requires standing badges).
+    nonisolated static var showStandingSecondThird: Bool {
+        get { defaults.bool(forKey: Key.showStandingSecondThird) }
+        set { defaults.set(newValue, forKey: Key.showStandingSecondThird) }
+    }
+
+    /// When true, circled rank digits appear for 4th place and below (requires 2nd/3rd toggle).
+    nonisolated static var showStandingFourthPlus: Bool {
+        get { defaults.bool(forKey: Key.showStandingFourthPlus) }
+        set { defaults.set(newValue, forKey: Key.showStandingFourthPlus) }
     }
 
     nonisolated static var syncCurrentSession: Bool {
@@ -145,11 +207,30 @@ enum AppSettings {
         loadScoringPreferences().resolvedProfile()
     }
 
+    @discardableResult
+    nonisolated static func activateBundledRuleset(id: String) -> ScoringPreferencesPayload {
+        var payload = loadScoringPreferences()
+        payload.activateBundledRuleset(id: id)
+        saveScoringPreferences(payload)
+        return payload
+    }
+
+    @discardableResult
+    nonisolated static func activateCustomRuleset() -> ScoringPreferencesPayload {
+        var payload = loadScoringPreferences()
+        payload.activateCustomRuleset()
+        saveScoringPreferences(payload)
+        return payload
+    }
+
     /// Stable defaults for Fastlane snapshot / screenshot UI tests.
     nonisolated static func applyScreenshotDefaults() {
+        appearanceMode = .light
         hapticsEnabled = false
         showAutoAdvanceTurnOption = false
-        showDicePreview = false
+        showStandingBadges = true
+        showStandingSecondThird = false
+        showStandingFourthPlus = false
         syncCurrentSession = false
         saveScoringPreferences(
             ScoringPreferencesPayload.defaultTemplate(rulesetId: ScoringProfile.defaultRulesetId)

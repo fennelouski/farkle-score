@@ -11,9 +11,6 @@ struct PhoneScoreTabView: View {
             PlayerAvatarStripView()
             MainPanelView()
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
     }
 }
 

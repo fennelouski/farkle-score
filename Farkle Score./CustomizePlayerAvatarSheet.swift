@@ -30,9 +30,7 @@ struct CustomizePlayerAvatarSheet: View {
     @State private var cameraImage: UIImage?
 #endif
 
-    private static let quickPickEmojis: [String] = [
-        "🎲", "🎯", "⭐", "🏆", "🔥", "💎", "🍀", "🎪", "🦄", "🐉", "🦋", "🌙", "⚡️", "🎸", "🍕",
-    ]
+    private static let quickPickEmojis: [String] = PlayerAppearanceAssignment.defaultEmojiPool
 
     private static let quickPicksRowInsets = EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
     private static let optionRowInsets = EdgeInsets(top: 4, leading: 20, bottom: 4, trailing: 20)

@@ -5,11 +5,22 @@
 
 import SwiftUI
 
+private struct PlayerListViewportHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct PlayerListView: View {
+    private static let playerListRowInsets = EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0)
+
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.farkleLayoutStyle) private var layoutStyle
     @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
     @State private var editorMode: PlayerEditorMode?
@@ -17,17 +28,31 @@ struct PlayerListView: View {
     @State private var showSettings = false
     @State private var showRulesLibrary = false
     @State private var showNewGameConfirmation = false
+    @State private var showQuickSetupSheet = false
+    @State private var showClearRosterConfirmation = false
+    @State private var quickSetupMode: QuickPlayerSetupMode = .clearedRoster
+    @State private var playerListViewportHeight: CGFloat = 0
+    @State private var draggingPlayerID: UUID?
+    @State private var reorderHoverIndex: Int?
 
     private var isGameStarted: Bool {
         store.isGameInProgress
     }
 
-    private var newGameConfirmationMessage: String {
-        var message = "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same."
-        if store.isGameInProgress {
-            message += " You can undo the reset right away from the header."
+    private var canEmphasizeActivePlayer: Bool {
+        guard isGameStarted, layoutStyle == .sidebar, !needsVerticalScroll, playerListViewportHeight > 0 else {
+            return false
         }
-        return message
+        return PlayerRowLayoutMetrics.estimatedListHeight(
+            playerCount: store.players.count,
+            activeIndex: store.activePlayerIndex,
+            emphasizeActive: true,
+            dynamicTypeSize: dynamicTypeSize
+        ) <= playerListViewportHeight
+    }
+
+    private var newGameConfirmationMessage: String {
+        "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same."
     }
 
     private var needsVerticalScroll: Bool {
@@ -64,11 +89,27 @@ struct PlayerListView: View {
             RulesLibraryView()
                 .farkleRulesSheet()
         }
+        .sheet(isPresented: $showQuickSetupSheet) {
+            QuickPlayerSetupSheet(mode: quickSetupMode) {
+                showQuickSetupSheet = false
+            }
+        }
+        .farkleConfirmationDialog(
+            isPresented: $showClearRosterConfirmation,
+            title: "Remove all players?",
+            message: "You can add them back from saved players or enter new names.",
+            confirmTitle: "Remove all",
+            onConfirm: {
+                store.clearAllPlayers()
+                quickSetupMode = .clearedRoster
+                showQuickSetupSheet = true
+            }
+        )
         .farkleConfirmationDialog(
             isPresented: $showNewGameConfirmation,
             title: "Start new game?",
             message: newGameConfirmationMessage,
-            confirmTitle: "NEW GAME",
+            confirmTitle: "New game",
             onConfirm: { store.newGame() }
         )
     }
@@ -78,31 +119,14 @@ struct PlayerListView: View {
             header
                 .padding(.bottom, 16)
 
-            Text(isGameStarted ? "PLAYERS" : "PLAYERS (6 MAX)")
+            Text(isGameStarted ? "Players" : "Players (6 max)")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted(contrast))
                 .padding(.bottom, 8)
                 .accessibilityLabel(isGameStarted ? "Players" : "Players, 6 maximum")
                 .accessibilityAddTraits(.isHeader)
 
-            Group {
-                if needsVerticalScroll {
-                    VStack(spacing: 8) {
-                        ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
-                            playerRow(index: index, player: player)
-                        }
-                    }
-                } else {
-                    ScrollView {
-                        VStack(spacing: 8) {
-                            ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
-                                playerRow(index: index, player: player)
-                            }
-                        }
-                    }
-                    .farkleVerticalSafeAreaFade(topExtra: 0, bottomExtra: 0)
-                }
-            }
+            playersList
 
             if !needsVerticalScroll {
                 Spacer(minLength: 12)
@@ -123,22 +147,105 @@ struct PlayerListView: View {
             }
 
             if !isGameStarted {
+                if store.isUnchangedDefaultRoster {
+                    InlineDefaultRosterSetupView()
+                        .padding(.bottom, 4)
+                    pickSavedPlayersButton
+                } else {
+                    setupPlayersButton
+                }
                 addPlayerButton
                 newGameButton
             }
         }
     }
 
+    @ViewBuilder
+    private var playersList: some View {
+        if isGameStarted {
+            inGamePlayersList
+        } else {
+            preGamePlayersList
+        }
+    }
+
+    @ViewBuilder
+    private var preGamePlayersList: some View {
+        if store.players.isEmpty {
+            Text("Add at least one player to start.")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.muted(contrast))
+                .padding(.vertical, 8)
+                .accessibilityLabel("Add at least one player to start")
+        } else if store.isUnchangedDefaultRoster {
+            EmptyView()
+        } else {
+            VStack(spacing: 8) {
+                ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
+                    playerRow(index: index, player: player)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var inGamePlayersList: some View {
+        let list = List {
+            ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
+                playerRow(index: index, player: player)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(Self.playerListRowInsets)
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(needsVerticalScroll)
+        .background {
+            if !needsVerticalScroll {
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: PlayerListViewportHeightKey.self,
+                        value: geo.size.height
+                    )
+                }
+            }
+        }
+        .onPreferenceChange(PlayerListViewportHeightKey.self) { playerListViewportHeight = $0 }
+
+        if needsVerticalScroll {
+            list
+        } else {
+            list.farkleVerticalSafeAreaFade(topExtra: 0, bottomExtra: 0)
+        }
+    }
+
     private func playerRow(index: Int, player: Player) -> some View {
-        PlayerRowView(
+        let showsReorderHandle = !isGameStarted && store.players.count > 1
+
+        return PlayerRowView(
             index: index,
             player: player,
             allPlayers: store.players,
             isActive: index == store.activePlayerIndex,
             onSelect: { store.selectPlayer(at: index) },
             onEdit: { editorMode = .editGamePlayer(index: index) },
+            onChangePlayer: { editorMode = .changeGamePlayer(index: index) },
             onRemove: { store.removePlayer(at: index) },
-            canRemoveFromGame: store.canRemovePlayerDownToMinimum
+            canRemoveFromGame: store.canRemovePlayerDownToMinimum,
+            showsReorderHandle: showsReorderHandle,
+            showsEditButton: !isGameStarted,
+            isProminent: canEmphasizeActivePlayer && index == store.activePlayerIndex,
+            isDragging: draggingPlayerID == player.id,
+            onReorderDragBegan: { draggingPlayerID = player.id }
+        )
+        .playerReorderDropDestination(
+            index: index,
+            isEnabled: showsReorderHandle,
+            draggingPlayerID: $draggingPlayerID,
+            activeHoverIndex: $reorderHoverIndex,
+            players: store.players,
+            move: store.movePlayers(fromOffsets:toOffset:)
         )
     }
 
@@ -148,22 +255,12 @@ struct PlayerListView: View {
                 Text("FARKLE")
                     .font(.system(.largeTitle, design: .rounded).bold())
                     .foregroundStyle(AppTheme.primaryText)
-                Text("SCORE KEEPER")
+                Text("Score Keeper")
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.accentYellow(contrast))
             }
             Spacer(minLength: 8)
             HStack(spacing: 0) {
-                if store.canUndoNewGame {
-                    UndoNewGameButton {
-                        store.undoNewGame()
-                    }
-                }
-                if isGameStarted || store.gamePhase == .finished {
-                    NewGameIconButton {
-                        showNewGameConfirmation = true
-                    }
-                }
                 Button {
                     showSavedPlayersLibrary = true
                 } label: {
@@ -206,11 +303,66 @@ struct PlayerListView: View {
         .accessibilityAddTraits(.isHeader)
     }
 
+    private var pickSavedPlayersButton: some View {
+        Button {
+            quickSetupMode = .defaultRosterNameSlots
+            showQuickSetupSheet = true
+        } label: {
+            Label("Pick saved players", systemImage: "person.2.fill")
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppTheme.accentBlue(contrast))
+        .padding(.bottom, 8)
+        .accessibilityLabel("Pick saved players")
+        .accessibilityHint("Opens saved player list to build your roster quickly")
+    }
+
+    private var setupPlayersButton: some View {
+        Button(action: openQuickSetup) {
+            Label("Set up players", systemImage: "person.3.fill")
+                .font(.subheadline.weight(.semibold))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 44)
+                .padding(.vertical, 14)
+                .farkleButtonHitArea()
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .fill(AppTheme.cardFill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast))
+                        )
+                )
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(AppTheme.primaryGreen)
+        .padding(.bottom, 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Set up players")
+        .accessibilityHint("Pick saved players or enter new names for this game")
+    }
+
+    private func openQuickSetup() {
+        if store.isUnchangedDefaultRoster {
+            quickSetupMode = .defaultRosterNameSlots
+            showQuickSetupSheet = true
+        } else if store.players.isEmpty {
+            quickSetupMode = .clearedRoster
+            showQuickSetupSheet = true
+        } else {
+            showClearRosterConfirmation = true
+        }
+    }
+
     private var addPlayerButton: some View {
         Button {
             editorMode = .addToGame
         } label: {
-            Label("ADD PLAYER", systemImage: "plus.circle.fill")
+            Label("Add player", systemImage: "plus.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -241,7 +393,7 @@ struct PlayerListView: View {
         return Button {
             showNewGameConfirmation = true
         } label: {
-            Label(gameFinished ? "NEW GAME READY" : "NEW GAME", systemImage: "arrow.clockwise.circle.fill")
+            Label(gameFinished ? "New game ready" : "New game", systemImage: "arrow.clockwise.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 44)
@@ -271,10 +423,20 @@ struct PlayerListView: View {
     }
 }
 
-#Preview {
+#Preview("Pre-game") {
     PlayerListView()
         .environment(GameStore.preview)
         .environment(PlayerProfileStore())
+        .environment(\.farkleLayoutStyle, .sidebar)
         .frame(width: 280, height: 700)
+        .background(AppTheme.background)
+}
+
+#Preview("In progress") {
+    PlayerListView()
+        .environment(GameStore.preview)
+        .environment(PlayerProfileStore())
+        .environment(\.farkleLayoutStyle, .sidebar)
+        .frame(width: 300, height: 700)
         .background(AppTheme.background)
 }

@@ -114,7 +114,7 @@ extension View {
         isPresented: Binding<Bool>,
         title: String,
         message: String,
-        confirmTitle: String = "NEW GAME",
+        confirmTitle: String = "New game",
         cancelTitle: String = "Cancel",
         onConfirm: @escaping () -> Void
     ) -> some View {
@@ -147,7 +147,7 @@ extension View {
         FarkleConfirmationDialogOverlay(
             title: "Start new game?",
             message: "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same.",
-            confirmTitle: "NEW GAME",
+            confirmTitle: "New game",
             cancelTitle: "Cancel",
             onConfirm: {},
             onCancel: {}

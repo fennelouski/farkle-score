@@ -50,12 +50,9 @@ final class Farkle_Score_UITests: XCTestCase {
                 .exists
         }
 
-        let addToScore = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label == %@", "Add to score"))
-            .firstMatch
         XCTAssertTrue(
-            addToScore.waitForExistence(timeout: 10),
-            "Add-to-score control must expose the 'Add to score' accessibility label"
+            hasAccessibilityId("farkle.addToScore"),
+            "Add-to-score control must expose the stable farkle.addToScore accessibility identifier"
         )
         UITestNavigation.switchToCommonScoresIfPresent(app)
         XCTAssertTrue(
@@ -130,7 +127,7 @@ final class Farkle_Score_UITests: XCTestCase {
         XCTAssertTrue(digitFive.waitForExistence(timeout: 10), "Keypad digit 5 must be available")
         digitFive.tap()
 
-        let addToScore = app.buttons["Add to score"]
+        let addToScore = app.buttons["farkle.addToScore"]
         XCTAssertTrue(addToScore.waitForExistence(timeout: 5))
         addToScore.tap()
 
@@ -142,7 +139,6 @@ final class Farkle_Score_UITests: XCTestCase {
             "First player row should show 5 points after scoring"
         )
 
-        UITestNavigation.openPlayersTabIfPresent(app)
         let newGame = app.buttons["New game"]
         XCTAssertTrue(newGame.waitForExistence(timeout: 5))
         newGame.tap()
@@ -175,12 +171,29 @@ final class Farkle_Score_UITests: XCTestCase {
 
         XCTAssertFalse(dialogTitle.waitForExistence(timeout: 2))
 
-        let zeroRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "position 1", "0 points"))
+        UITestNavigation.openPlayersTabIfPresent(app)
+        let preGameRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "Alice, position 1"))
             .firstMatch
         XCTAssertTrue(
-            zeroRow.waitForExistence(timeout: 5),
-            "Confirm new game must reset scores to zero"
+            preGameRow.waitForExistence(timeout: 5),
+            "Confirm new game must return to pre-game player rows"
+        )
+        XCTAssertFalse(
+            app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "position 1", "0 points"))
+                .firstMatch
+                .exists,
+            "Pre-game rows must not show zero-point scores"
+        )
+        let reorderHandle = app.buttons["Reorder Alice"]
+        XCTAssertTrue(
+            reorderHandle.waitForExistence(timeout: 5),
+            "Pre-game rows must expose reorder handles instead of scores"
+        )
+        XCTAssertTrue(
+            app.buttons["Edit Alice"].waitForExistence(timeout: 3),
+            "Pre-game rows must expose edit pencils after new game reset"
         )
     }
 
@@ -189,16 +202,12 @@ final class Farkle_Score_UITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        let secondRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@", "Bob, position 2"))
-            .firstMatch
-        XCTAssertTrue(secondRow.waitForExistence(timeout: 8), "Second player row should be visible")
-        secondRow.tap()
+        UITestNavigation.openPlayersTabIfPresent(app)
 
         let editBobButton = app.buttons["Edit Bob"]
         XCTAssertTrue(
-            editBobButton.waitForExistence(timeout: 5),
-            "Active player row should expose the edit pencil action"
+            editBobButton.waitForExistence(timeout: 8),
+            "Pre-game player rows should expose the edit pencil without selecting the row first"
         )
         editBobButton.tap()
 

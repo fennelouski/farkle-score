@@ -14,6 +14,7 @@ import AppKit
 enum PlayerEditorMode: Equatable {
     case addToGame
     case editGamePlayer(index: Int)
+    case changeGamePlayer(index: Int)
     case createProfile
     case editProfile(PlayerProfile)
 }
@@ -25,7 +26,6 @@ struct PlayerEditorSheet: View {
     @Environment(GameStore.self) private var store
     @Environment(PlayerProfileStore.self) private var profileStore
     @Environment(\.colorSchemeContrast) private var contrast
-    @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
     @State private var draftEmoji: String?
@@ -55,6 +55,7 @@ struct PlayerEditorSheet: View {
         switch mode {
         case .addToGame: return "Add Player"
         case .editGamePlayer: return "Edit Player"
+        case .changeGamePlayer: return "Change Player"
         case .createProfile, .editProfile: return "Saved Player"
         }
     }
@@ -82,17 +83,14 @@ struct PlayerEditorSheet: View {
                     )
                     .farkleSheetChrome(detents: [.medium])
                 }
-                .confirmationDialog(
-                    "Remove this player from the current game?",
-                    isPresented: $showRemoveConfirm,
-                    titleVisibility: .visible
-                ) {
-                    Button("Remove from game", role: .destructive) {
-                        removeFromGame()
-                    }
-                    Button("Cancel", role: .cancel) {}
-                }
         }
+        .farkleConfirmationDialog(
+            isPresented: $showRemoveConfirm,
+            title: "Remove this player from the current game?",
+            message: "They will be removed from the roster. Their past scores stay in this game's history.",
+            confirmTitle: "Remove from game",
+            onConfirm: { performRemoveFromGame() }
+        )
 #if os(iOS)
         .farkleSheetChrome()
 #endif
@@ -106,7 +104,7 @@ struct PlayerEditorSheet: View {
         Form {
             nameSection
 
-            if mode == .addToGame {
+            if mode == .addToGame || isChangeGamePlayerMode {
                 savedPlayersSection
             }
 
@@ -125,14 +123,27 @@ struct PlayerEditorSheet: View {
     private var confirmTitle: String {
         switch mode {
         case .addToGame: return "Add"
+        case .changeGamePlayer: return "Change"
         default: return "Save"
         }
+    }
+
+    private var isChangeGamePlayerMode: Bool {
+        if case .changeGamePlayer = mode { return true }
+        return false
+    }
+
+    private var changeGamePlayerIndex: Int? {
+        if case .changeGamePlayer(let index) = mode { return index }
+        return nil
     }
 
     private var canConfirm: Bool {
         switch mode {
         case .addToGame:
             return store.canAddPlayer
+        case .changeGamePlayer:
+            return !trimmedName.isEmpty
         default:
             return !trimmedName.isEmpty
         }
@@ -144,44 +155,48 @@ struct PlayerEditorSheet: View {
 
     @ViewBuilder
     private var savedPlayersSection: some View {
-        let profiles = profileStore.allSortedByName()
-        if !profiles.isEmpty {
-            Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(profiles) { profile in
-                            savedPlayerChip(profile)
-                        }
-                    }
-                    .padding(.vertical, 4)
+        SavedPlayerChipScrollSection(
+            profiles: profileStore.allSortedByName(),
+            isDisabled: { profile in
+                let inGame = store.isProfileInGame(profile.id)
+                if let index = changeGamePlayerIndex {
+                    return !store.isProfileAvailableForChange(profile.id, replacingAt: index)
                 }
-            } header: {
-                Text("Saved players")
+                return inGame || !store.canAddPlayer
+            },
+            accessibilityLabel: { profile, disabled in
+                savedPlayerChipAccessibilityLabel(
+                    profile: profile,
+                    disabled: disabled
+                )
+            },
+            onSelect: { profile in
+                if let index = changeGamePlayerIndex {
+                    guard store.isProfileAvailableForChange(profile.id, replacingAt: index) else { return }
+                    store.replacePlayer(at: index, from: profile)
+                    syncGameRosterToLibrary()
+                    close()
+                } else {
+                    guard !store.isProfileInGame(profile.id), store.canAddPlayer else { return }
+                    store.addPlayer(from: profile)
+                    close()
+                }
             }
-        }
+        )
     }
 
-    private func savedPlayerChip(_ profile: PlayerProfile) -> some View {
+    private func savedPlayerChipAccessibilityLabel(
+        profile: PlayerProfile,
+        disabled: Bool
+    ) -> String {
         let inGame = store.isProfileInGame(profile.id)
-        return Button {
-            guard !inGame, store.canAddPlayer else { return }
-            store.addPlayer(from: profile)
-            close()
-        } label: {
-            VStack(spacing: 6) {
-                ProfileAvatarView(profile: profile, size: 44)
-                Text(profile.name)
-                    .font(.caption2.weight(.medium))
-                    .lineLimit(1)
-                    .foregroundStyle(inGame ? AppTheme.muted(contrast) : AppTheme.primaryText)
+        if changeGamePlayerIndex != nil {
+            if disabled {
+                return inGame ? "\(profile.name), already in game" : profile.name
             }
-            .frame(width: 72)
-            .farkleButtonHitArea()
-            .opacity(inGame ? 0.45 : 1)
+            return profile.name
         }
-        .buttonStyle(.plain)
-        .disabled(inGame || !store.canAddPlayer)
-        .accessibilityLabel("\(profile.name)\(inGame ? ", already in game" : "")")
+        return "\(profile.name)\(inGame ? ", already in game" : "")"
     }
 
     private var appearanceSection: some View {
@@ -209,7 +224,7 @@ struct PlayerEditorSheet: View {
 
     private var extraRosterForPreview: [Player] {
         switch mode {
-        case .editGamePlayer(let index):
+        case .editGamePlayer(let index), .changeGamePlayer(let index):
             guard store.players.indices.contains(index) else { return [] }
             var copy = store.players
             copy[index] = previewPlayer
@@ -289,6 +304,14 @@ struct PlayerEditorSheet: View {
             draftPhotoFileName = p.avatarPhotoFileName
             colorIndex = p.effectiveAvatarColorIndex(listIndex: index)
             draftPlayerId = p.id
+        case .changeGamePlayer(let index):
+            guard store.players.indices.contains(index) else { return }
+            let player = store.players[index]
+            name = ""
+            draftEmoji = nil
+            draftPhotoFileName = nil
+            colorIndex = player.effectiveAvatarColorIndex(listIndex: index)
+            draftPlayerId = player.id
         case .createProfile:
             name = ""
             draftEmoji = nil
@@ -313,6 +336,15 @@ struct PlayerEditorSheet: View {
             let displayName = label.isEmpty ? nil : label
             store.addPlayer(
                 name: displayName,
+                avatarEmoji: draftEmoji,
+                avatarPhotoFileName: draftPhotoFileName,
+                avatarColorIndex: colorIndex
+            )
+            syncGameRosterToLibrary()
+        case .changeGamePlayer(let index):
+            store.replacePlayer(
+                at: index,
+                name: label,
                 avatarEmoji: draftEmoji,
                 avatarPhotoFileName: draftPhotoFileName,
                 avatarColorIndex: colorIndex
@@ -362,20 +394,35 @@ struct PlayerEditorSheet: View {
 
     private func syncGameRosterToLibrary() {
         var players = store.players
-        if GameRosterProfileSync.sync(players: &players, profileStore: profileStore) {
+        if GameRosterProfileSync.sync(
+            players: &players,
+            profileStore: profileStore,
+            defaultRosterExemptions: store.defaultRosterExemptions
+        ) {
             store.players = players
         }
     }
 
     private func commitProfile(_ profile: PlayerProfile, existingId: UUID?) {
         var prepared = profile
+        let linkedIds = Set(store.players.compactMap(\.profileId))
+        if let existingByName = profileStore.profile(named: prepared.name, excludingId: existingId) {
+            prepared.id = existingByName.id
+        } else if let canonical = ProfileDedup.canonicalProfile(
+            forName: prepared.name,
+            in: profileStore.profiles,
+            linkedProfileIds: linkedIds,
+            excludingId: existingId
+        ) {
+            prepared.id = canonical.id
+        }
         if let adopted = try? AvatarImageStore.adoptPhotoForProfile(
-            profileId: profile.id,
-            existingFileName: profile.avatarPhotoFileName
+            profileId: prepared.id,
+            existingFileName: prepared.avatarPhotoFileName
         ) {
             prepared.avatarPhotoFileName = adopted
         }
-        if existingId != nil, profileStore.profile(id: profile.id) != nil {
+        if profileStore.profile(id: prepared.id) != nil {
             profileStore.update(prepared)
         } else {
             profileStore.add(prepared)
@@ -383,16 +430,19 @@ struct PlayerEditorSheet: View {
         Task { await CloudSyncController.saveProfileToCloud(prepared) }
     }
 
-    private func removeFromGame() {
+    private func performRemoveFromGame() {
         if case .editGamePlayer(let index) = mode {
             store.removePlayer(at: index)
         }
-        close()
+        // Dismiss the sheet on the next run loop so the confirmation overlay can finish
+        // animating out; closing synchronously from a dialog action can freeze the UI.
+        Task { @MainActor in
+            close()
+        }
     }
 
     private func close() {
         onDismiss()
-        dismiss()
     }
 }
 

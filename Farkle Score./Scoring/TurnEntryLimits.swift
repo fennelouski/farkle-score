@@ -13,10 +13,6 @@ nonisolated enum TurnEntryLabel {
         label.hasPrefix("Three ") && label.hasSuffix("s") && label != "Three pairs"
     }
 
-    static func isDicePreview(_ label: String) -> Bool {
-        label.hasPrefix("Dice preview")
-    }
-
     /// Per-face die usage for faces 1…6 (index 0 = ace). Zeros when the label has no fixed face breakdown.
     static func faceCounts(forLabel label: String) -> [Int] {
         var counts = Array(repeating: 0, count: 6)

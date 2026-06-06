@@ -36,7 +36,7 @@ struct PlayerEditorSheet: View {
     @State private var showRemoveConfirm = false
 
     private static let appearanceRowInsets = EdgeInsets(top: 16, leading: 20, bottom: 8, trailing: 20)
-    private static let nameRowInsets = EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
+    private static let nameRowInsets = EdgeInsets(top: 16, leading: 20, bottom: 8, trailing: 20)
     private static let removeRowInsets = EdgeInsets(top: 4, leading: 20, bottom: 12, trailing: 20)
 
     private var linkedProfileId: UUID? {
@@ -104,12 +104,13 @@ struct PlayerEditorSheet: View {
 
     private var editorForm: some View {
         Form {
+            nameSection
+
             if mode == .addToGame {
                 savedPlayersSection
             }
 
             appearanceSection
-            nameSection
             removeSection
         }
         .scrollContentBackground(.hidden)
@@ -232,12 +233,27 @@ struct PlayerEditorSheet: View {
 
     private var nameSection: some View {
         Section {
-            TextField("Name", text: $name)
-                .labelsHidden()
+            HStack(spacing: 8) {
+                TextField("Name", text: $name)
+                    .labelsHidden()
 #if os(iOS)
-                .textInputAutocapitalization(.words)
+                    .textInputAutocapitalization(.words)
 #endif
-                .listRowInsets(Self.nameRowInsets)
+                if !name.isEmpty {
+                    Button {
+                        name = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.body)
+                            .foregroundStyle(AppTheme.muted(contrast))
+                            .frame(minWidth: 36, minHeight: 36)
+                            .farkleButtonHitArea()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear name")
+                }
+            }
+            .listRowInsets(Self.nameRowInsets)
         } header: {
             Text("Name")
         }

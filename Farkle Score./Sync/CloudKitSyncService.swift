@@ -279,7 +279,14 @@ actor CloudKitSyncService: CloudSyncing {
         else {
             return nil
         }
-        return ScoreEntry(id: entryId, playerId: playerId, amount: amount, timestamp: timestamp)
+        let breakdown = decodeBreakdown(from: record[CloudKitSchema.breakdownJSONKey])
+        return ScoreEntry(
+            id: entryId,
+            playerId: playerId,
+            amount: amount,
+            timestamp: timestamp,
+            breakdown: breakdown
+        )
     }
 
     private nonisolated static func populate(record: CKRecord, from entry: ScoreEntry) {
@@ -287,6 +294,17 @@ actor CloudKitSyncService: CloudSyncing {
         record[CloudKitSchema.playerIdKey] = entry.playerId.uuidString as CKRecordValue
         record[CloudKitSchema.amountKey] = entry.amount as CKRecordValue
         record[CloudKitSchema.timestampKey] = entry.timestamp as CKRecordValue
+        if let breakdown = entry.breakdown, !breakdown.isEmpty,
+           let data = try? JSONEncoder().encode(breakdown) {
+            record[CloudKitSchema.breakdownJSONKey] = data as CKRecordValue
+        } else {
+            record[CloudKitSchema.breakdownJSONKey] = nil
+        }
+    }
+
+    private nonisolated static func decodeBreakdown(from value: CKRecordValue?) -> [TurnScoreEntry]? {
+        guard let data = value as? Data, !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode([TurnScoreEntry].self, from: data)
     }
 
     private nonisolated static func populate(record: CKRecord, from profile: PlayerProfile) {

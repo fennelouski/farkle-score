@@ -380,7 +380,8 @@ final class GameStore {
         active.score += amount
         players[activePlayerIndex] = active
         if amount != 0 {
-            history.append(ScoreEntry(playerId: active.id, amount: amount))
+            let breakdown = isTurnBuilderActive ? turnEntries : nil
+            history.append(ScoreEntry(playerId: active.id, amount: amount, breakdown: breakdown))
         }
 
         if gamePhase == .regular, active.score >= Self.targetScore {
@@ -421,7 +422,12 @@ final class GameStore {
         players[playerIdx].score -= entry.amount
         history.remove(at: index)
         activePlayerIndex = playerIdx
-        setPreset(entry.amount)
+        if let breakdown = entry.breakdown, !breakdown.isEmpty {
+            turnEntries = breakdown
+            currentInput = ""
+        } else {
+            setPreset(entry.amount)
+        }
         resetGameProgressAfterScoreMutation()
         clearNewGameUndoSnapshot()
         return true

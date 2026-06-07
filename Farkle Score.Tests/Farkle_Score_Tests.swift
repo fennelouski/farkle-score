@@ -1468,7 +1468,86 @@ struct TurnScoreBuilderTests {
         #expect(store.players[0].score == 150)
         #expect(store.history.count == 1)
         #expect(store.history.last?.amount == 150)
+        #expect(store.history.last?.breakdown?.count == 2)
+        #expect(store.history.last?.breakdownSummary == "Single 1 · Single 5")
         #expect(store.turnEntries.isEmpty)
+    }
+
+    @Test func addToScoreWithKeypadLeavesBreakdownNil() {
+        let store = GameStore(players: [Player(name: "A", score: 0)], activePlayerIndex: 0)
+        store.appendDigit("5")
+        store.appendDigit("0")
+        store.appendDigit("0")
+        store.addToScore()
+        #expect(store.history.count == 1)
+        #expect(store.history.last?.amount == 500)
+        #expect(store.history.last?.breakdown == nil)
+        #expect(store.history.last?.breakdownSummary == nil)
+    }
+
+    @Test func scoreEntryBreakdownSummaryJoinsLabels() {
+        let entry = ScoreEntry(
+            playerId: UUID(),
+            amount: 350,
+            breakdown: [
+                TurnScoreEntry(value: 300, label: "Three 5s", kind: .tripleChip, diceCount: 3),
+                TurnScoreEntry(value: 50, label: "Single 5", kind: .singleChip, diceCount: 1),
+            ]
+        )
+        #expect(entry.breakdownSummary == "Three 5s · Single 5")
+    }
+
+    @Test func scoreEntryCodableRoundTripWithBreakdown() throws {
+        let original = ScoreEntry(
+            playerId: UUID(),
+            amount: 1500,
+            timestamp: Date(timeIntervalSince1970: 1_700_000_000),
+            breakdown: [
+                TurnScoreEntry(value: 1500, label: "Straight 1–6", kind: .combination, diceCount: 6),
+            ]
+        )
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(ScoreEntry.self, from: data)
+        #expect(decoded == original)
+    }
+
+    @Test func historyDisplayModeCyclesThroughThreeCases() {
+        #expect(HistoryDisplayMode.table.next == .list)
+        #expect(HistoryDisplayMode.list.next == .breakdown)
+        #expect(HistoryDisplayMode.breakdown.next == .table)
+    }
+
+    @Test func historyDisplayModePersistsBreakdown() {
+        let key = AppSettings.historyDisplayModeStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        AppSettings.historyDisplayMode = .breakdown
+        #expect(AppSettings.historyDisplayMode == .breakdown)
+    }
+
+    @Test func prepareToEditHistoryEntryRestoresTurnEntriesWhenBreakdownPresent() {
+        let aliceId = UUID()
+        let breakdown = [
+            TurnScoreEntry(value: 300, label: "Three 5s", kind: .tripleChip, diceCount: 3),
+            TurnScoreEntry(value: 50, label: "Single 5", kind: .singleChip, diceCount: 1),
+        ]
+        let entryAlice = ScoreEntry(playerId: aliceId, amount: 350, breakdown: breakdown)
+        let store = GameStore(
+            players: [Player(id: aliceId, name: "Alice", score: 350)],
+            activePlayerIndex: 0,
+            history: [entryAlice]
+        )
+        #expect(store.prepareToEditHistoryEntry(id: entryAlice.id))
+        #expect(store.history.isEmpty)
+        #expect(store.turnEntries == breakdown)
+        #expect(store.currentInput.isEmpty)
+        #expect(store.resolvedTurnAmount == 350)
     }
 
     @Test func selectPlayerPreservesTurnBuilder() {

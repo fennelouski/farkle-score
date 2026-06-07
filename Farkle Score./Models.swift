@@ -130,15 +130,34 @@ struct ScoreEntry: Identifiable, Equatable, Sendable {
     var playerId: UUID
     var amount: Int
     var timestamp: Date
+    /// Score chips used for this turn; `nil` for manual keypad entry or legacy history.
+    var breakdown: [TurnScoreEntry]?
 
-    nonisolated init(id: UUID = UUID(), playerId: UUID, amount: Int, timestamp: Date = .now) {
+    nonisolated init(
+        id: UUID = UUID(),
+        playerId: UUID,
+        amount: Int,
+        timestamp: Date = .now,
+        breakdown: [TurnScoreEntry]? = nil
+    ) {
         self.id = id
         self.playerId = playerId
         self.amount = amount
         self.timestamp = timestamp
+        self.breakdown = breakdown
+    }
+
+    /// Human-readable chip labels joined for history display, e.g. "Three 5s · Single 1".
+    nonisolated var breakdownSummary: String? {
+        guard let breakdown, !breakdown.isEmpty else { return nil }
+        return breakdown.map(\.label).joined(separator: " · ")
     }
 
     nonisolated static func == (lhs: ScoreEntry, rhs: ScoreEntry) -> Bool {
-        lhs.id == rhs.id && lhs.playerId == rhs.playerId && lhs.amount == rhs.amount && lhs.timestamp == rhs.timestamp
+        lhs.id == rhs.id
+            && lhs.playerId == rhs.playerId
+            && lhs.amount == rhs.amount
+            && lhs.timestamp == rhs.timestamp
+            && lhs.breakdown == rhs.breakdown
     }
 }

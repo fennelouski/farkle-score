@@ -8,6 +8,31 @@ import SwiftUI
 enum HistoryDisplayMode: String, Sendable {
     case table
     case list
+    case breakdown
+
+    var next: HistoryDisplayMode {
+        switch self {
+        case .table: return .list
+        case .list: return .breakdown
+        case .breakdown: return .table
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .table: return "tablecells"
+        case .list: return "list.bullet"
+        case .breakdown: return "square.stack.3d.up"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .table: return "Round table"
+        case .list: return "Entry list"
+        case .breakdown: return "Score breakdown list"
+        }
+    }
 }
 
 struct HistoryContentView: View {
@@ -58,16 +83,16 @@ struct HistoryContentView: View {
 
     private var displayModeToggle: some View {
         Button {
-            displayMode = displayMode == .table ? .list : .table
+            displayMode = displayMode.next
         } label: {
-            Image(systemName: displayMode == .table ? "tablecells" : "list.bullet")
+            Image(systemName: displayMode.iconName)
                 .font(.caption.weight(.semibold))
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.muted(contrast))
-        .accessibilityLabel(displayMode == .table ? "Round table" : "Entry list")
+        .accessibilityLabel(displayMode.accessibilityLabel)
         .accessibilityHint("Double tap to switch history layout")
     }
 
@@ -93,6 +118,8 @@ struct HistoryContentView: View {
                 tableContent
             case .list:
                 listContent
+            case .breakdown:
+                breakdownContent
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -128,6 +155,24 @@ struct HistoryContentView: View {
         .scrollIndicators(.visible)
     }
 
+    private var breakdownContent: some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(Array(history.reversed())) { entry in
+                    Button {
+                        onSelectEntry(entry)
+                    } label: {
+                        historyBreakdownRow(entry)
+                    }
+                    .buttonStyle(.plain)
+                    Divider()
+                        .background(AppTheme.stroke(contrast))
+                }
+            }
+        }
+        .scrollIndicators(.visible)
+    }
+
     private func historyListRow(_ entry: ScoreEntry) -> some View {
         let name = players.first(where: { $0.id == entry.playerId })?.name ?? "?"
         let idx = playerColorIndex(entry.playerId) ?? 0
@@ -150,6 +195,47 @@ struct HistoryContentView: View {
         .accessibilityValue(showTimes ? entry.timestamp.formatted(date: .omitted, time: .standard) : "")
         .accessibilityHint("Shows options to edit or delete this entry")
         .accessibilityAddTraits(.isButton)
+    }
+
+    private func historyBreakdownRow(_ entry: ScoreEntry) -> some View {
+        let name = players.first(where: { $0.id == entry.playerId })?.name ?? "?"
+        let idx = playerColorIndex(entry.playerId) ?? 0
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(name)
+                    .foregroundStyle(AppTheme.avatarColor(index: idx, contrast: contrast))
+                Spacer()
+                Text("+\(AppTheme.formatScore(entry.amount))")
+                    .foregroundStyle(AppTheme.primaryText)
+                if showTimes {
+                    Text(entry.timestamp, format: .dateTime.hour().minute().second())
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.muted(contrast))
+                }
+            }
+            if let summary = entry.breakdownSummary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.muted(contrast))
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(breakdownAccessibilityLabel(name: name, entry: entry))
+        .accessibilityValue(showTimes ? entry.timestamp.formatted(date: .omitted, time: .standard) : "")
+        .accessibilityHint("Shows options to edit or delete this entry")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func breakdownAccessibilityLabel(name: String, entry: ScoreEntry) -> String {
+        var label = "\(name) added \(AppTheme.spokenScore(entry.amount))"
+        if let summary = entry.breakdownSummary {
+            label += ", \(summary)"
+        }
+        return label
     }
 
     private func toggleRowTotal(_ roundNumber: Int) {

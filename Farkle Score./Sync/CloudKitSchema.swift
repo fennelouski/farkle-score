@@ -25,6 +25,7 @@ enum CloudKitSchema: Sendable {
     nonisolated static let playerIdKey = "playerId"
     nonisolated static let amountKey = "amount"
     nonisolated static let timestampKey = "timestamp"
+    nonisolated static let breakdownJSONKey = "breakdownJSON"
 
     nonisolated static let currentSessionRecordType = "CurrentSession"
     nonisolated static let currentSessionRecordName = "active"

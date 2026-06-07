@@ -167,9 +167,67 @@ extension PlayerProfile: Codable {
     }
 }
 
+extension TurnScoreEntryKind: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case singleChip, tripleChip, combination
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "singleChip": self = .singleChip
+        case "tripleChip": self = .tripleChip
+        case "combination": self = .combination
+        default:
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown TurnScoreEntryKind: \(raw)"
+            )
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .singleChip: try container.encode("singleChip")
+        case .tripleChip: try container.encode("tripleChip")
+        case .combination: try container.encode("combination")
+        }
+    }
+}
+
+extension TurnScoreEntry: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, value, label, kind, diceCount, faceCounts
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try c.decode(UUID.self, forKey: .id),
+            value: try c.decode(Int.self, forKey: .value),
+            label: try c.decode(String.self, forKey: .label),
+            kind: try c.decode(TurnScoreEntryKind.self, forKey: .kind),
+            diceCount: try c.decode(Int.self, forKey: .diceCount),
+            faceCounts: try c.decodeIfPresent([Int].self, forKey: .faceCounts)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(value, forKey: .value)
+        try c.encode(label, forKey: .label)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(diceCount, forKey: .diceCount)
+        try c.encode(faceCounts, forKey: .faceCounts)
+    }
+}
+
 extension ScoreEntry: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, playerId, amount, timestamp
+        case id, playerId, amount, timestamp, breakdown
     }
 
     public init(from decoder: Decoder) throws {
@@ -178,7 +236,8 @@ extension ScoreEntry: Codable {
             id: try c.decode(UUID.self, forKey: .id),
             playerId: try c.decode(UUID.self, forKey: .playerId),
             amount: try c.decode(Int.self, forKey: .amount),
-            timestamp: try c.decode(Date.self, forKey: .timestamp)
+            timestamp: try c.decode(Date.self, forKey: .timestamp),
+            breakdown: try c.decodeIfPresent([TurnScoreEntry].self, forKey: .breakdown)
         )
     }
 
@@ -188,5 +247,6 @@ extension ScoreEntry: Codable {
         try c.encode(playerId, forKey: .playerId)
         try c.encode(amount, forKey: .amount)
         try c.encode(timestamp, forKey: .timestamp)
+        try c.encodeIfPresent(breakdown, forKey: .breakdown)
     }
 }

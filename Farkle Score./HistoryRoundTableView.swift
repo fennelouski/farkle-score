@@ -155,6 +155,13 @@ struct HistoryRoundTableView: View {
                     .font(.body.weight(.medium).monospacedDigit())
                     .foregroundStyle(AppTheme.muted(contrast))
             }
+            if !showingTotal, let summary = entry?.breakdownSummary {
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.muted(contrast))
+                    .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
+            }
             if showTimes, let entry {
                 Text(entry.timestamp, style: .time)
                     .font(.caption2)
@@ -184,11 +191,15 @@ struct HistoryRoundTableView: View {
         let scorePhrase = showingTotal
             ? "total \(AppTheme.spokenScore(amount))"
             : AppTheme.spokenScore(amount)
+        var label = "\(playerName), \(scorePhrase)"
+        if !showingTotal, let summary = entry?.breakdownSummary {
+            label += ", \(summary)"
+        }
         if let entry, showTimes {
             let time = entry.timestamp.formatted(date: .omitted, time: .shortened)
-            return "\(playerName), \(scorePhrase), \(time)"
+            return "\(label), \(time)"
         }
-        return "\(playerName), \(scorePhrase)"
+        return label
     }
 
     @ViewBuilder

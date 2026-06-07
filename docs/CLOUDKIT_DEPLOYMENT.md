@@ -13,7 +13,7 @@ Defined in [`Farkle Score./Sync/CloudKitSchema.swift`](../Farkle%20Score./Sync/C
 | Record type       | Record name(s)                    | Fields |
 |-------------------|-----------------------------------|--------|
 | `PlayerRoster`    | `roster`                          | `playersJSON` (Bytes) — JSON array of players (scores stripped on save). |
-| `HistoryEntry`    | one per entry (`entry.id` UUID)   | `entryId`, `playerId`, `amount`, `timestamp` |
+| `HistoryEntry`    | one per entry (`entry.id` UUID)   | `entryId`, `playerId`, `amount`, `timestamp`, optional `breakdownJSON` (Bytes) — JSON array of score chips |
 | `CurrentSession`  | `active`                          | `payload` (Bytes), `modifiedAt` (Date/Double) |
 | `AppPreferences` | `preferences`                     | `payload` (Bytes) — JSON `ScoringPreferencesPayload`; `modifiedAt` (Date/Double) for last-write-wins merge. |
 | `SavedPlayerProfile` | one per profile (`profile.id` UUID) | `profileId`, `name`, `avatarEmoji`, `avatarColorIndex`, `modifiedAt`, `avatarPhotoFileName`, optional `photo` (Asset) |

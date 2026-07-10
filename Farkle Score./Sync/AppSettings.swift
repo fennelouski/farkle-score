@@ -19,12 +19,18 @@ enum AppSettings {
         nonisolated static let lastScoringPreferencesWrite = "farkle.lastScoringPreferencesWrite"
         /// Light impact haptics on keypad and presets (default on when unset).
         nonisolated static let hapticsEnabled = "farkle.hapticsEnabled"
-        /// Whether the player list shows the Auto-advance turn toggle (default off when unset).
+        /// Whether the player list shows the Auto-advance turn toggle (legacy; default off when unset).
         nonisolated static let showAutoAdvanceTurnOption = "farkle.showAutoAdvanceTurnOption"
+        /// Advance to the next player after each score is added (default on when unset).
+        nonisolated static let autoAdvanceAfterScoring = "farkle.autoAdvanceAfterScoring"
+        /// Show a progress bar countdown before auto-advancing (default on when unset).
+        nonisolated static let animateAutoAdvance = "farkle.animateAutoAdvance"
         /// App appearance: system, light, or dark (default system when unset).
         nonisolated static let appearanceMode = "farkle.appearanceMode"
         /// Show timestamps on history score entries (default on when unset).
         nonisolated static let historyShowTimes = "farkle.historyShowTimes"
+        /// Show score-type labels (e.g. Three 5s) in history (default on when unset).
+        nonisolated static let historyShowScoreTypes = "farkle.historyShowScoreTypes"
         /// History layout: table or list (default table when unset).
         nonisolated static let historyDisplayMode = "farkle.historyDisplayMode"
         /// Standing badges on player names (crown for 1st; default on when unset).
@@ -45,9 +51,15 @@ enum AppSettings {
 
     nonisolated static let showAutoAdvanceTurnOptionStorageKey = Key.showAutoAdvanceTurnOption
 
+    nonisolated static let autoAdvanceAfterScoringStorageKey = Key.autoAdvanceAfterScoring
+
+    nonisolated static let animateAutoAdvanceStorageKey = Key.animateAutoAdvance
+
     nonisolated static let appearanceModeStorageKey = Key.appearanceMode
 
     nonisolated static let historyShowTimesStorageKey = Key.historyShowTimes
+
+    nonisolated static let historyShowScoreTypesStorageKey = Key.historyShowScoreTypes
 
     nonisolated static let historyDisplayModeStorageKey = Key.historyDisplayMode
 
@@ -79,10 +91,28 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.hapticsEnabled) }
     }
 
-    /// When true, the player list shows the Auto-advance turn control (default hidden).
+    /// When true, the player list shows the Auto-advance turn control (legacy; default hidden).
     nonisolated static var showAutoAdvanceTurnOption: Bool {
         get { defaults.bool(forKey: Key.showAutoAdvanceTurnOption) }
         set { defaults.set(newValue, forKey: Key.showAutoAdvanceTurnOption) }
+    }
+
+    /// When true, the active player advances after each score is added. Unset key defaults to `true`.
+    nonisolated static var autoAdvanceAfterScoring: Bool {
+        get {
+            if defaults.object(forKey: Key.autoAdvanceAfterScoring) == nil { return true }
+            return defaults.bool(forKey: Key.autoAdvanceAfterScoring)
+        }
+        set { defaults.set(newValue, forKey: Key.autoAdvanceAfterScoring) }
+    }
+
+    /// When true, auto-advance shows a progress bar countdown before switching players. Unset key defaults to `true`.
+    nonisolated static var animateAutoAdvance: Bool {
+        get {
+            if defaults.object(forKey: Key.animateAutoAdvance) == nil { return true }
+            return defaults.bool(forKey: Key.animateAutoAdvance)
+        }
+        set { defaults.set(newValue, forKey: Key.animateAutoAdvance) }
     }
 
     /// App appearance override. Unset key defaults to `.system`.
@@ -101,6 +131,15 @@ enum AppSettings {
             return defaults.bool(forKey: Key.historyShowTimes)
         }
         set { defaults.set(newValue, forKey: Key.historyShowTimes) }
+    }
+
+    /// When true, history shows score-type labels from chip breakdowns. Unset key defaults to `true`.
+    nonisolated static var historyShowScoreTypes: Bool {
+        get {
+            if defaults.object(forKey: Key.historyShowScoreTypes) == nil { return true }
+            return defaults.bool(forKey: Key.historyShowScoreTypes)
+        }
+        set { defaults.set(newValue, forKey: Key.historyShowScoreTypes) }
     }
 
     /// History layout mode. Unset key defaults to `.table`.
@@ -228,6 +267,8 @@ enum AppSettings {
         appearanceMode = .light
         hapticsEnabled = false
         showAutoAdvanceTurnOption = false
+        autoAdvanceAfterScoring = true
+        animateAutoAdvance = true
         showStandingBadges = true
         showStandingSecondThird = false
         showStandingFourthPlus = false

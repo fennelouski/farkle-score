@@ -9,6 +9,7 @@ struct GameRootView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
+    @State private var hardwareScoreInputSuppressed = false
 
     private var useCompact: Bool {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
@@ -34,6 +35,8 @@ struct GameRootView: View {
             }
         }
         .environment(\.farkleLayoutStyle, layoutStyle)
+        .onPreferenceChange(HardwareScoreInputSuppressedPreferenceKey.self) { hardwareScoreInputSuppressed = $0 }
+        .environment(\.hardwareScoreInputSuppressed, hardwareScoreInputSuppressed)
         .padding(.top, layoutStyle == .phoneTabs ? 0 : FarkleLayoutMetrics.iPadTopContentInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)

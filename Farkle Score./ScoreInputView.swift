@@ -14,6 +14,8 @@ struct ScoreInputView: View {
 
     @Environment(GameStore.self) private var store
     @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
+    @AppStorage(AppSettings.autoAdvanceAfterScoringStorageKey) private var autoAdvanceAfterScoring = true
+    @AppStorage(AppSettings.animateAutoAdvanceStorageKey) private var animateAutoAdvance = true
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
@@ -25,8 +27,12 @@ struct ScoreInputView: View {
     @State private var pendingUnusualAmount: Int?
     @State private var activeInputPanel: ScoreInputPanel = .keypad
     @State private var showRulesLibrary = false
+    @State private var autoAdvancePhase: AutoAdvanceVisualPhase = .idle
+    @State private var autoAdvanceTask: Task<Void, Never>?
+    @State private var suppressAutoAdvanceCancellation = false
 
     @Environment(\.farkleLayoutStyle) private var layoutStyle
+    @Environment(\.hardwareScoreInputSuppressed) private var hardwareScoreInputSuppressed
 
     private var stackVertically: Bool {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
@@ -44,10 +50,20 @@ struct ScoreInputView: View {
         return AppTheme.avatarColor(index: idx, contrast: contrast)
     }
 
+    private var hardwareKeyboardScoreInputEnabled: Bool {
+        !scoringDisabled
+            && !hardwareScoreInputSuppressed
+            && !showUnusualScoreConfirmation
+    }
+
     var body: some View {
         scoreInputContent
-        .disabled(scoringDisabled)
-        .opacity(scoringDisabled ? 0.5 : 1)
+        .hardwareKeyboardScoreInput(
+            isEnabled: hardwareKeyboardScoreInputEnabled,
+            onDigit: { store.appendDigit($0) },
+            onBackspace: { store.backspace() },
+            onSubmit: { requestAddToScore() }
+        )
         .overlay {
             if showUnusualScoreConfirmation, let amount = pendingUnusualAmount {
                 unusualScoreOverlay(amount: amount)
@@ -56,12 +72,26 @@ struct ScoreInputView: View {
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
                 .farkleRulesSheet()
+                .hardwareScoreInputSuppressionActive()
+        }
+        .onChange(of: store.activePlayerIndex) { _, _ in
+            guard autoAdvancePhase != .idle, !suppressAutoAdvanceCancellation else { return }
+            cancelAutoAdvanceAnimation()
+        }
+        .onChange(of: store.gamePhase) { _, newPhase in
+            guard autoAdvancePhase != .idle, newPhase == .finished else { return }
+            cancelAutoAdvanceAnimation()
+        }
+        .onDisappear {
+            cancelAutoAdvanceAnimation()
         }
     }
 
     @ViewBuilder
     private var scoreInputContent: some View {
-        if layoutStyle == .phoneTabs {
+        if store.gamePhase == .finished {
+            FinalRankingsView(onShowHistory: onShowHistory)
+        } else if layoutStyle == .phoneTabs {
             phoneScoreInputContent
         } else {
             Group {
@@ -114,15 +144,7 @@ struct ScoreInputView: View {
                 }
             }
 
-            AddToScoreButton(
-                player: store.activePlayer,
-                allPlayers: store.players,
-                listIndex: store.activePlayerIndex,
-                accentColor: activePlayerAccentColor
-            ) {
-                requestAddToScore()
-            }
-            .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+            addToScoreButton
 
             if !store.history.isEmpty, let onShowHistory {
                 ShowHistoryButton(action: onShowHistory)
@@ -173,15 +195,7 @@ struct ScoreInputView: View {
                 onBackspace: { store.backspace() }
             )
 
-            AddToScoreButton(
-                player: store.activePlayer,
-                allPlayers: store.players,
-                listIndex: store.activePlayerIndex,
-                accentColor: activePlayerAccentColor
-            ) {
-                requestAddToScore()
-            }
-            .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+            addToScoreButton
 
             if !store.history.isEmpty, let onShowHistory {
                 ShowHistoryButton(action: onShowHistory)
@@ -190,6 +204,19 @@ struct ScoreInputView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background { cardBackground() }
+    }
+
+    private var addToScoreButton: some View {
+        AddToScoreButton(
+            player: store.activePlayer,
+            allPlayers: store.players,
+            listIndex: store.activePlayerIndex,
+            accentColor: activePlayerAccentColor,
+            autoAdvancePhase: autoAdvancePhase
+        ) {
+            requestAddToScore()
+        }
+        .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
     }
 
     private var scoringPayload: ScoringPreferencesPayload {
@@ -307,8 +334,15 @@ struct ScoreInputView: View {
     private func commitAddToScore(amount: Int) {
         let playerName = store.activePlayer?.name ?? ""
         let chipCount = store.singleChipEntries.count
+        let shouldAutoAdvance = autoAdvanceAfterScoring
+            && store.players.count > 1
+            && store.gamePhase != .finished
+        let shouldAnimate = shouldAutoAdvance
+            && animateAutoAdvance
+            && !reduceMotion
+
         withAnimation(reduceMotion ? nil : .snappy) {
-            store.addToScore()
+            store.addToScore(advanceTurn: shouldAutoAdvance && !shouldAnimate)
         }
         if amount != 0 {
             var message = "Added \(AppTheme.spokenScore(amount)) to \(playerName)"
@@ -316,6 +350,53 @@ struct ScoreInputView: View {
                 message += ", including \(chipCount) single\(chipCount == 1 ? "" : "s")"
             }
             announce(message)
+        }
+
+        if shouldAnimate, store.gamePhase != .finished {
+            startAnimatedAutoAdvance()
+        }
+    }
+
+    private func startAnimatedAutoAdvance() {
+        cancelAutoAdvanceAnimation(resetPhase: false)
+
+        autoAdvanceTask = Task { @MainActor in
+            withAnimation(.easeInOut(duration: AutoAdvanceTiming.crossfadeDuration)) {
+                autoAdvancePhase = .crossfading
+            }
+            try? await Task.sleep(for: .seconds(AutoAdvanceTiming.crossfadeDuration))
+            guard !Task.isCancelled else { return }
+
+            autoAdvancePhase = .progressing(0)
+            withAnimation(.linear(duration: AutoAdvanceTiming.progressDuration)) {
+                autoAdvancePhase = .progressing(1)
+            }
+            try? await Task.sleep(for: .seconds(AutoAdvanceTiming.progressDuration))
+            guard !Task.isCancelled else { return }
+
+            completeAnimatedAutoAdvance()
+        }
+    }
+
+    private func completeAnimatedAutoAdvance() {
+        suppressAutoAdvanceCancellation = true
+        withAnimation(reduceMotion ? nil : .snappy) {
+            store.advanceToNextPlayer()
+        }
+        autoAdvancePhase = .idle
+        autoAdvanceTask = nil
+        suppressAutoAdvanceCancellation = false
+
+        if let nextPlayer = store.activePlayer {
+            announce("\(nextPlayer.name)'s turn")
+        }
+    }
+
+    private func cancelAutoAdvanceAnimation(resetPhase: Bool = true) {
+        autoAdvanceTask?.cancel()
+        autoAdvanceTask = nil
+        if resetPhase {
+            autoAdvancePhase = .idle
         }
     }
 

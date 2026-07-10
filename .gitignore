@@ -14,3 +14,7 @@ fastlane/README.md
 # Ruby
 vendor/bundle/
 .bundle/
+
+# Local build output (artifacts, not source)
+build/
+.DS_Store

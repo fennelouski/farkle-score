@@ -9,6 +9,7 @@ struct HistoryRoundTableView: View {
     let players: [Player]
     let matrix: HistoryRoundMatrix
     let showTimes: Bool
+    let showScoreTypes: Bool
     let rowsShowingTotals: Set<Int>
     let playerColorIndex: (UUID) -> Int?
     let onToggleRowTotal: (Int) -> Void
@@ -18,8 +19,9 @@ struct HistoryRoundTableView: View {
     @ScaledMetric private var cellPadding: CGFloat = 10
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: true) {
-            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 0) {
+        ScrollView(.vertical, showsIndicators: true) {
+            ScrollView(.horizontal, showsIndicators: true) {
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 0) {
                 GridRow {
                     roundHeaderCell
                         .frame(minWidth: 88, alignment: .leading)
@@ -48,7 +50,9 @@ struct HistoryRoundTableView: View {
                     .background(rowBackground(rowIndex))
                 }
             }
+            }
         }
+        .scrollIndicators(.visible)
         .accessibilityElement(children: .contain)
     }
 
@@ -155,7 +159,7 @@ struct HistoryRoundTableView: View {
                     .font(.body.weight(.medium).monospacedDigit())
                     .foregroundStyle(AppTheme.muted(contrast))
             }
-            if !showingTotal, let summary = entry?.breakdownSummary {
+            if showScoreTypes, !showingTotal, let summary = entry?.breakdownSummary {
                 Text(summary)
                     .font(.caption2)
                     .foregroundStyle(AppTheme.muted(contrast))
@@ -192,7 +196,7 @@ struct HistoryRoundTableView: View {
             ? "total \(AppTheme.spokenScore(amount))"
             : AppTheme.spokenScore(amount)
         var label = "\(playerName), \(scorePhrase)"
-        if !showingTotal, let summary = entry?.breakdownSummary {
+        if showScoreTypes, !showingTotal, let summary = entry?.breakdownSummary {
             label += ", \(summary)"
         }
         if let entry, showTimes {

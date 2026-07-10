@@ -93,6 +93,8 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func captureRulesLibrary() {
+        UITestNavigation.openScoreTabIfPresent(app)
+        UITestNavigation.switchToCommonScoresIfPresent(app)
         let ruleReferences = findElement(
             identifiers: [],
             labels: ["Rule references", "Open rule references"]

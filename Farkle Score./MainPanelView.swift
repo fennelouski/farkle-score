@@ -21,6 +21,7 @@ struct MainPanelView: View {
     @State private var showNewGameConfirmation = false
     @State private var selectedHistoryEntry: ScoreEntry?
     @AppStorage(AppSettings.historyShowTimesStorageKey) private var historyShowTimes = true
+    @AppStorage(AppSettings.historyShowScoreTypesStorageKey) private var historyShowScoreTypes = true
     @AppStorage(AppSettings.historyDisplayModeStorageKey) private var historyDisplayModeRaw = HistoryDisplayMode.table.rawValue
     @State private var rowsShowingTotals: Set<Int> = []
     @ScaledMetric(relativeTo: .title) private var turnHeaderAvatarSize: CGFloat = 48
@@ -71,6 +72,7 @@ struct MainPanelView: View {
         }
         .sheet(isPresented: $showFullHistory) {
             historySheet
+                .hardwareScoreInputSuppressionActive()
         }
         .farkleConfirmationDialog(
             isPresented: $showNewGameConfirmation,
@@ -198,7 +200,7 @@ struct MainPanelView: View {
         case .finished:
             return "Game complete. Winner is \(leaderName) with \(AppTheme.spokenScore(leaderScore))."
         case .finalRound:
-            return "\(activeName)'s turn. Final round in progress. Current score \(AppTheme.spokenScore(activeScore))."
+            return "\(activeName)'s turn. Final round in progress. Everyone else gets one last turn. Current score \(AppTheme.spokenScore(activeScore))."
         case .regular:
             return "\(activeName)'s turn. Current score \(AppTheme.spokenScore(activeScore))."
         }
@@ -207,13 +209,19 @@ struct MainPanelView: View {
     private var gamePhaseBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             if store.gamePhase == .finalRound {
-                Label("Final round: everyone gets one last turn.", systemImage: "flag.checkered")
+                Label("Final round: everyone else gets one last turn.", systemImage: "flag.checkered")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.accentYellow(contrast))
             } else if store.gamePhase == .finished {
                 Text("Winner: \(leaderName) (\(AppTheme.formatScore(leaderScore)))")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
+
+                ShareGameResultsButton(
+                    players: store.players,
+                    history: store.history,
+                    winner: store.winner
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -297,6 +305,7 @@ struct MainPanelView: View {
                         players: store.players,
                         history: store.history,
                         showTimes: $historyShowTimes,
+                        showScoreTypes: $historyShowScoreTypes,
                         displayMode: historyDisplayModeBinding,
                         rowsShowingTotals: $rowsShowingTotals,
                         playerColorIndex: { store.playerColorIndex(for: $0) },

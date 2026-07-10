@@ -14,7 +14,7 @@
 import Foundation
 
 struct GameStoreState: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 3
+    nonisolated static let currentSchemaVersion = 3
 
     var schemaVersion: Int
     var players: [Player]

@@ -13,7 +13,6 @@ struct InlineDefaultRosterSetupView: View {
     @State private var nameFields: [String] = ["", "", ""]
     @FocusState private var focusedField: Int?
 
-    private static let maxPlayers = 6
     private static let initialFieldCount = 3
 
     private var profiles: [PlayerProfile] {
@@ -39,16 +38,14 @@ struct InlineDefaultRosterSetupView: View {
                 nameFieldRow(at: index)
             }
 
-            if nameFields.count < Self.maxPlayers {
-                Button {
-                    appendField()
-                } label: {
-                    Label("Add another player", systemImage: "plus.circle")
-                        .font(.caption.weight(.medium))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.accentBlue(contrast))
+            Button {
+                appendField()
+            } label: {
+                Label("Add another player", systemImage: "plus.circle")
+                    .font(.caption.weight(.medium))
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.accentBlue(contrast))
 
             Button(action: commitSetup) {
                 Label("Done", systemImage: "checkmark.circle.fill")
@@ -68,6 +65,7 @@ struct InlineDefaultRosterSetupView: View {
             .accessibilityHint(canConfirm ? "Applies names and starts the game roster" : "Enter at least one player name")
         }
         .padding(.vertical, 4)
+        .hardwareScoreInputSuppressionActive(focusedField != nil)
     }
 
     private func nameFieldRow(at index: Int) -> some View {
@@ -130,14 +128,13 @@ struct InlineDefaultRosterSetupView: View {
     }
 
     private func appendField() {
-        guard nameFields.count < Self.maxPlayers else { return }
         nameFields.append("")
         focusedField = nameFields.count - 1
     }
 
     private func handleSubmit(at index: Int) {
         let trimmed = nameFields[index].trimmingCharacters(in: .whitespacesAndNewlines)
-        if index == nameFields.count - 1, !trimmed.isEmpty, nameFields.count < Self.maxPlayers {
+        if index == nameFields.count - 1, !trimmed.isEmpty {
             appendField()
         } else if index < nameFields.count - 1 {
             focusedField = index + 1

@@ -47,14 +47,15 @@ struct GameStoreTests {
         #expect(store.history.isEmpty)
     }
 
-    @Test func maxSixPlayers() {
+    @Test func canAddPlayersBeyondSix() {
         let store = GameStore(players: [
             Player(name: "1"), Player(name: "2"), Player(name: "3"),
             Player(name: "4"), Player(name: "5"), Player(name: "6"),
         ])
-        #expect(store.canAddPlayer == false)
+        #expect(store.canAddPlayer == true)
         store.addPlayer(name: "7")
-        #expect(store.players.count == 6)
+        #expect(store.players.count == 7)
+        #expect(store.players.last?.name == "7")
     }
 
     @Test func newGameZerosScoresAndClearsHistory() {
@@ -123,7 +124,7 @@ struct GameStoreTests {
         #expect(!store.canUndoNewGame)
     }
 
-    @Test func finalRoundIncludesTriggeringPlayer() {
+    @Test func finalRoundExcludesTriggeringPlayer() {
         let alice = UUID()
         let bob = UUID()
         let store = GameStore(
@@ -136,8 +137,64 @@ struct GameStoreTests {
         store.setPreset(100)
         store.addToScore()
         #expect(store.gamePhase == .finalRound)
-        #expect(store.finalRoundPendingPlayerIDs.contains(alice))
+        #expect(!store.finalRoundPendingPlayerIDs.contains(alice))
         #expect(store.finalRoundPendingPlayerIDs.contains(bob))
+        #expect(store.finalRoundTriggerPlayerID == alice)
+    }
+
+    @Test func finalRoundAdvancesToNextPendingPlayer() {
+        let alice = UUID()
+        let bob = UUID()
+        let chris = UUID()
+        let store = GameStore(
+            players: [
+                Player(id: alice, name: "Alice", score: 9_900),
+                Player(id: bob, name: "Bob", score: 0),
+                Player(id: chris, name: "Chris", score: 0),
+            ],
+            activePlayerIndex: 0
+        )
+        store.setPreset(100)
+        store.addToScore()
+        #expect(store.activePlayerIndex == 1)
+        #expect(store.activePlayer?.id == bob)
+    }
+
+    @Test func finalRoundCompletesAfterAllOthersPlay() {
+        let alice = UUID()
+        let bob = UUID()
+        let chris = UUID()
+        let store = GameStore(
+            players: [
+                Player(id: alice, name: "Alice", score: 9_900),
+                Player(id: bob, name: "Bob", score: 0),
+                Player(id: chris, name: "Chris", score: 0),
+            ],
+            activePlayerIndex: 0
+        )
+        store.setPreset(100)
+        store.addToScore()
+        #expect(store.gamePhase == .finalRound)
+
+        store.setPreset(50)
+        store.addToScore()
+        #expect(store.gamePhase == .finalRound)
+
+        store.setPreset(50)
+        store.addToScore()
+        #expect(store.gamePhase == .finished)
+    }
+
+    @Test func soloPlayerCrossingTargetFinishesImmediately() {
+        let alice = UUID()
+        let store = GameStore(
+            players: [Player(id: alice, name: "Alice", score: 9_900)],
+            activePlayerIndex: 0
+        )
+        store.setPreset(100)
+        store.addToScore()
+        #expect(store.gamePhase == .finished)
+        #expect(store.finalRoundPendingPlayerIDs.isEmpty)
     }
 
     @Test func rosterMergePrefersCloudIdsAndKeepsMatchingScores() {
@@ -180,12 +237,31 @@ struct GameStoreTests {
     @Test func autoAdvanceCyclesPlayer() {
         let store = GameStore(
             players: [Player(name: "A"), Player(name: "B")],
-            activePlayerIndex: 0,
-            autoAdvanceAfterScore: true
+            activePlayerIndex: 0
         )
         store.setPreset(10)
-        store.addToScore()
+        store.addToScore(advanceTurn: true)
         #expect(store.activePlayerIndex == 1)
+    }
+
+    @Test func addToScoreWithoutAdvanceKeepsActivePlayer() {
+        let store = GameStore(
+            players: [Player(name: "A"), Player(name: "B")],
+            activePlayerIndex: 0
+        )
+        store.setPreset(10)
+        store.addToScore(advanceTurn: false)
+        #expect(store.activePlayerIndex == 0)
+        #expect(store.players[0].score == 10)
+    }
+
+    @Test func advanceToNextPlayerWrapsAround() {
+        let store = GameStore(
+            players: [Player(name: "A"), Player(name: "B"), Player(name: "C")],
+            activePlayerIndex: 2
+        )
+        store.advanceToNextPlayer()
+        #expect(store.activePlayerIndex == 0)
     }
 
     @Test func appendDigitStopsAtNineCharacters() {
@@ -1127,6 +1203,7 @@ struct HistoryRoundMatrixTests {
 
 // MARK: - App settings
 
+@Suite(.serialized)
 struct AppSettingsTests {
 
     @Test func hapticsEnabledUnsetDefaultsTrueAndPersistsFalse() {
@@ -1143,6 +1220,38 @@ struct AppSettingsTests {
         #expect(AppSettings.hapticsEnabled == true)
         AppSettings.hapticsEnabled = false
         #expect(AppSettings.hapticsEnabled == false)
+    }
+
+    @Test func autoAdvanceAfterScoringUnsetDefaultsTrueAndPersistsFalse() {
+        let key = AppSettings.autoAdvanceAfterScoringStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.autoAdvanceAfterScoring == true)
+        AppSettings.autoAdvanceAfterScoring = false
+        #expect(AppSettings.autoAdvanceAfterScoring == false)
+    }
+
+    @Test func animateAutoAdvanceUnsetDefaultsTrueAndPersistsFalse() {
+        let key = AppSettings.animateAutoAdvanceStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.animateAutoAdvance == true)
+        AppSettings.animateAutoAdvance = false
+        #expect(AppSettings.animateAutoAdvance == false)
     }
 
     @Test func appearanceModeUnsetDefaultsSystemAndPersistsDark() {
@@ -1175,6 +1284,22 @@ struct AppSettingsTests {
         #expect(AppSettings.historyShowTimes == true)
         AppSettings.historyShowTimes = false
         #expect(AppSettings.historyShowTimes == false)
+    }
+
+    @Test func historyShowScoreTypesUnsetDefaultsTrueAndPersistsFalse() {
+        let key = AppSettings.historyShowScoreTypesStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(AppSettings.historyShowScoreTypes == true)
+        AppSettings.historyShowScoreTypes = false
+        #expect(AppSettings.historyShowScoreTypes == false)
     }
 
     @Test func historyDisplayModeUnsetDefaultsTableAndPersistsList() {
@@ -1343,6 +1468,52 @@ struct PlayerStandingsTests {
             Player(name: "Bob", score: 0),
         ]
         #expect(PlayerStandings.hasScoreDifferentiation(for: players))
+    }
+
+    @Test func finalScoresTextIncludesWinnerAndStandings() {
+        let alice = Player(name: "Alice", score: 10_250)
+        let bob = Player(name: "Bob", score: 9_800)
+        let chris = Player(name: "Chris", score: 7_400)
+        let text = GameResultsShare.finalScoresText(players: [alice, bob, chris], winner: alice)
+
+        #expect(text.contains("Farkle Score Keeper — Game Complete"))
+        #expect(text.contains("Winner: Alice (10,250)"))
+        #expect(text.contains("Final standings:"))
+        #expect(text.contains("1. Alice — 10,250"))
+        #expect(text.contains("2. Bob — 9,800"))
+        #expect(text.contains("3. Chris — 7,400"))
+    }
+
+    @Test func finalScoresTextTieShowsSharedRank() {
+        let alice = Player(name: "Alice", score: 10_000)
+        let bob = Player(name: "Bob", score: 10_000)
+        let chris = Player(name: "Chris", score: 8_000)
+        let text = GameResultsShare.finalScoresText(players: [alice, bob, chris], winner: alice)
+
+        #expect(text.contains("1. Alice — 10,000"))
+        #expect(text.contains("1. Bob — 10,000"))
+        #expect(text.contains("3. Chris — 8,000"))
+    }
+
+    @Test @MainActor func scorecardRendererProducesPNG() {
+        var alice = Player(name: "Alice", score: 500)
+        var bob = Player(name: "Bob", score: 300)
+        let history: [ScoreEntry] = [
+            ScoreEntry(playerId: alice.id, amount: 500, timestamp: .now),
+            ScoreEntry(playerId: bob.id, amount: 300, timestamp: .now),
+        ]
+        alice.score = 500
+        bob.score = 300
+
+        let data = GameShareRenderer.renderScorecardPNG(
+            players: [alice, bob],
+            history: history,
+            winner: alice
+        )
+
+        #expect(data != nil)
+        #expect(data?.isEmpty == false)
+        #expect(data?.starts(with: [0x89, 0x50, 0x4E, 0x47]) == true)
     }
 
     @Test func circledRankDigitMapsFourthThroughSixth() {
@@ -1909,7 +2080,7 @@ struct QuickPlayerSetupTests {
         #expect(store.players.count == 1)
         #expect(store.players[0].avatarEmoji == "🏆")
         #expect(store.players[0].avatarColorIndex == 7)
-        #expect(store.players[0].profileId == nil)
+        #expect(store.players[0].profileId == profile.id)
     }
 
     @Test func quickSetupSyncsToLibraryAndClearsExemptions() {
@@ -1975,5 +2146,40 @@ struct PlayerAppearanceAssignmentTests {
             existingProfiles: []
         )
         #expect(entries.count == 1)
+    }
+}
+
+struct HardwareKeyboardScoreInputRouterTests {
+
+    @Test func digitCharacterAppendsDigit() {
+        let action = HardwareKeyboardScoreInputRouter.route(key: .init("5"), characters: "5")
+        #expect(action == .appendDigit("5"))
+    }
+
+    @Test func digitRoutingUsesTypedCharacter() {
+        let topRow = HardwareKeyboardScoreInputRouter.route(key: .init("0"), characters: "0")
+        let otherKey = HardwareKeyboardScoreInputRouter.route(key: .space, characters: "7")
+        #expect(topRow == .appendDigit("0"))
+        #expect(otherKey == .appendDigit("7"))
+    }
+
+    @Test func letterCharactersAreIgnored() {
+        let action = HardwareKeyboardScoreInputRouter.route(key: .init("a"), characters: "a")
+        #expect(action == .ignore)
+    }
+
+    @Test func returnSubmitsScore() {
+        let action = HardwareKeyboardScoreInputRouter.route(key: .return, characters: "\r")
+        #expect(action == .submit)
+    }
+
+    @Test func deleteBackspaces() {
+        let action = HardwareKeyboardScoreInputRouter.route(key: .delete, characters: "")
+        #expect(action == .backspace)
+    }
+
+    @Test func multiCharacterInputIsIgnored() {
+        let action = HardwareKeyboardScoreInputRouter.route(key: .init("5"), characters: "50")
+        #expect(action == .ignore)
     }
 }

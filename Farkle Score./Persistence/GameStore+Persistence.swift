@@ -19,7 +19,7 @@ extension GameStore {
             players: players,
             activePlayerIndex: activePlayerIndex,
             history: history,
-            autoAdvanceAfterScore: autoAdvanceAfterScore,
+            autoAdvanceAfterScore: AppSettings.autoAdvanceAfterScoring,
             gamePhase: gamePhase,
             finalRoundPendingPlayerIDs: finalRoundPendingPlayerIDs,
             finalRoundTriggerPlayerID: finalRoundTriggerPlayerID,

@@ -39,6 +39,7 @@ struct HistoryContentView: View {
     let players: [Player]
     let history: [ScoreEntry]
     @Binding var showTimes: Bool
+    @Binding var showScoreTypes: Bool
     @Binding var displayMode: HistoryDisplayMode
     @Binding var rowsShowingTotals: Set<Int>
     let playerColorIndex: (UUID) -> Int?
@@ -53,8 +54,11 @@ struct HistoryContentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
+                .layoutPriority(1)
             historyBody
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
@@ -77,6 +81,7 @@ struct HistoryContentView: View {
             Spacer(minLength: 0)
 
             displayModeToggle
+            scoreTypesToggle
             timeToggle
         }
     }
@@ -94,6 +99,20 @@ struct HistoryContentView: View {
         .foregroundStyle(AppTheme.muted(contrast))
         .accessibilityLabel(displayMode.accessibilityLabel)
         .accessibilityHint("Double tap to switch history layout")
+    }
+
+    private var scoreTypesToggle: some View {
+        Button {
+            showScoreTypes.toggle()
+        } label: {
+            Image(systemName: showScoreTypes ? "die.face.5.fill" : "die.face.5")
+                .font(.caption.weight(.semibold))
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(showScoreTypes ? AppTheme.accentBlue(contrast) : AppTheme.muted(contrast))
+        .accessibilityLabel(showScoreTypes ? "Hide score types" : "Show score types")
     }
 
     private var timeToggle: some View {
@@ -122,7 +141,6 @@ struct HistoryContentView: View {
                 breakdownContent
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var tableContent: some View {
@@ -130,6 +148,7 @@ struct HistoryContentView: View {
             players: players,
             matrix: matrix,
             showTimes: showTimes,
+            showScoreTypes: showScoreTypes,
             rowsShowingTotals: rowsShowingTotals,
             playerColorIndex: playerColorIndex,
             onToggleRowTotal: toggleRowTotal,
@@ -213,7 +232,7 @@ struct HistoryContentView: View {
                         .foregroundStyle(AppTheme.muted(contrast))
                 }
             }
-            if let summary = entry.breakdownSummary {
+            if showScoreTypes, let summary = entry.breakdownSummary {
                 Text(summary)
                     .font(.caption)
                     .foregroundStyle(AppTheme.muted(contrast))
@@ -232,7 +251,7 @@ struct HistoryContentView: View {
 
     private func breakdownAccessibilityLabel(name: String, entry: ScoreEntry) -> String {
         var label = "\(name) added \(AppTheme.spokenScore(entry.amount))"
-        if let summary = entry.breakdownSummary {
+        if showScoreTypes, let summary = entry.breakdownSummary {
             label += ", \(summary)"
         }
         return label

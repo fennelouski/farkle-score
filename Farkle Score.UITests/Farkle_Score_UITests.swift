@@ -82,8 +82,8 @@ final class Farkle_Score_UITests: XCTestCase {
 
         UITestNavigation.openPlayersTabIfPresent(app)
         XCTAssertTrue(
-            hasLabeledElement("Players, 6 maximum"),
-            "Players section header must expose its expanded accessibility label"
+            hasLabeledElement("Players"),
+            "Players section header must expose its accessibility label"
         )
 
         // Player row labels are constructed as "<name>, position N, <score> points"

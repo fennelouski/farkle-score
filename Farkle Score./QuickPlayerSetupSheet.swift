@@ -30,7 +30,6 @@ struct QuickPlayerSetupSheet: View {
     @State private var nameFields: [String] = []
     @FocusState private var focusedNameField: Int?
 
-    private static let maxPlayers = 6
     private static let defaultNameSlotCount = 3
 
     private var profiles: [PlayerProfile] {
@@ -53,10 +52,6 @@ struct QuickPlayerSetupSheet: View {
         draftEntries.count + pendingNameCount
     }
 
-    private var canAddMore: Bool {
-        totalPendingCount < Self.maxPlayers
-    }
-
     private var canConfirm: Bool {
         totalPendingCount >= 1
     }
@@ -70,17 +65,9 @@ struct QuickPlayerSetupSheet: View {
                     isDisabled: { profile in
                         draftProfileIds.contains(profile.id)
                             || draftNormalizedNames.contains(ProfileDedup.normalizedName(profile.name))
-                            || !canAddMore
                     },
                     accessibilityLabel: { profile, disabled in
-                        if disabled {
-                            if draftProfileIds.contains(profile.id)
-                                || draftNormalizedNames.contains(ProfileDedup.normalizedName(profile.name)) {
-                                return "\(profile.name), already added"
-                            }
-                            return "\(profile.name), maximum players reached"
-                        }
-                        return profile.name
+                        disabled ? "\(profile.name), already added" : profile.name
                     },
                     onSelect: { addProfileToDraft($0) }
                 )
@@ -131,7 +118,7 @@ struct QuickPlayerSetupSheet: View {
                 }
             }
         } header: {
-            Text("Players in this game (\(totalPendingCount)/\(Self.maxPlayers))")
+            Text("Players in this game (\(totalPendingCount))")
         }
     }
 
@@ -165,17 +152,14 @@ struct QuickPlayerSetupSheet: View {
                     .onSubmit { handleNameFieldSubmit(at: index) }
             }
 
-            if nameFields.count < Self.maxPlayers, canAddMore {
-                Button {
-                    appendNameField()
-                } label: {
-                    Label("Add another player", systemImage: "plus.circle")
-                        .font(.subheadline.weight(.medium))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(AppTheme.accentBlue(contrast))
-                .disabled(!canAddMore)
+            Button {
+                appendNameField()
+            } label: {
+                Label("Add another player", systemImage: "plus.circle")
+                    .font(.subheadline.weight(.medium))
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.accentBlue(contrast))
         } header: {
             Text("Add by name")
         } footer: {
@@ -196,7 +180,6 @@ struct QuickPlayerSetupSheet: View {
     }
 
     private func addProfileToDraft(_ profile: PlayerProfile) {
-        guard canAddMore else { return }
         guard !draftProfileIds.contains(profile.id) else { return }
         let key = ProfileDedup.normalizedName(profile.name)
         guard !draftNormalizedNames.contains(key) else { return }
@@ -211,14 +194,13 @@ struct QuickPlayerSetupSheet: View {
     }
 
     private func appendNameField() {
-        guard nameFields.count < Self.maxPlayers, canAddMore else { return }
         nameFields.append("")
         focusedNameField = nameFields.count - 1
     }
 
     private func handleNameFieldSubmit(at index: Int) {
         let trimmed = nameFields[index].trimmingCharacters(in: .whitespacesAndNewlines)
-        if index == nameFields.count - 1, !trimmed.isEmpty, canAddMore, nameFields.count < Self.maxPlayers {
+        if index == nameFields.count - 1, !trimmed.isEmpty {
             appendNameField()
         } else if index < nameFields.count - 1 {
             focusedNameField = index + 1

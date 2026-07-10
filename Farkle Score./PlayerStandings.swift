@@ -7,6 +7,32 @@ import Foundation
 
 /// Score-based standing ranks for player list badges (not persisted).
 enum PlayerStandings {
+    struct RankedPlayer: Sendable {
+        var player: Player
+        var rank: Int
+        var listIndex: Int
+    }
+
+    /// Players sorted by score (high to low) with competition-style ranks.
+    nonisolated static func rankedPlayers(_ players: [Player]) -> [RankedPlayer] {
+        let sorted = players.enumerated().sorted { lhs, rhs in
+            if lhs.element.score != rhs.element.score {
+                return lhs.element.score > rhs.element.score
+            }
+            return lhs.offset < rhs.offset
+        }
+
+        var result: [RankedPlayer] = []
+        var rank = 1
+        for (index, item) in sorted.enumerated() {
+            if index > 0, item.element.score < sorted[index - 1].element.score {
+                rank = index + 1
+            }
+            result.append(RankedPlayer(player: item.element, rank: rank, listIndex: item.offset))
+        }
+        return result
+    }
+
     /// Competition-style ranks: tied scores share the same rank; next rank skips (1, 1, 3, …).
     nonisolated static func rankByPlayerID(for players: [Player]) -> [UUID: Int] {
         let sorted = players.enumerated().sorted { lhs, rhs in

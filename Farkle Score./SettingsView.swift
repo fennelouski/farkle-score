@@ -8,8 +8,11 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dismiss) private var dismiss
+    @Environment(GameStore.self) private var store
+    @Environment(SavedGamesStore.self) private var savedGamesStore
     @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
-    @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
+    @AppStorage(AppSettings.autoAdvanceAfterScoringStorageKey) private var autoAdvanceAfterScoring = true
+    @AppStorage(AppSettings.animateAutoAdvanceStorageKey) private var animateAutoAdvance = true
     @AppStorage(AppSettings.appearanceModeStorageKey) private var appearanceModeRaw = AppearanceMode.system.rawValue
     @AppStorage(AppSettings.showStandingBadgesStorageKey) private var showStandingBadges = true
     @AppStorage(AppSettings.showStandingSecondThirdStorageKey) private var showStandingSecondThird = false
@@ -183,15 +186,25 @@ struct SettingsView: View {
                 .accessibilityLabel("Rule references")
                 .accessibilityHint("Opens bundled rule references")
 
-                Toggle("Show auto-advance turn", isOn: $showAutoAdvanceTurnOption)
+                Toggle("Auto advance after scoring", isOn: $autoAdvanceAfterScoring)
                     .tint(AppTheme.accentBlue(contrast))
                     .accessibilityHint(
-                        "When on, the player list shows a control to advance to the next player automatically after each score"
+                        "When on, the next player is selected automatically after each score is added"
                     )
 
-                Text("Turn it on here first, then enable auto-advance on the player list if you want that behavior.")
-                    .font(.footnote)
-                    .foregroundStyle(AppTheme.muted(contrast))
+                if autoAdvanceAfterScoring {
+                    Toggle("Animate auto-advancement", isOn: $animateAutoAdvance)
+                        .tint(AppTheme.accentBlue(contrast))
+                        .accessibilityHint(
+                            "When on, the add-to-score button shows a progress bar before switching to the next player"
+                        )
+                }
+
+                Text(
+                    "With animation on, the add-to-score button briefly shows a progress bar before moving to the next player."
+                )
+                .font(.footnote)
+                .foregroundStyle(AppTheme.muted(contrast))
             } header: {
                 Text("Scoring")
             }
@@ -212,6 +225,36 @@ struct SettingsView: View {
                 } header: {
                     Text("Feedback")
                 }
+            }
+
+            Section {
+                NavigationLink {
+                    SavedGamesListView()
+                } label: {
+                    Label("Saved games", systemImage: "square.stack.3d.up")
+                }
+                .tint(AppTheme.accentBlue(contrast))
+
+                // ponytail: snapshot + photo read runs per render; Settings is not perf-critical.
+                ShareLink(
+                    item: ShareableGame(
+                        state: store.snapshot,
+                        scoringPreferences: AppSettings.loadScoringPreferences(),
+                        photos: SharedGamePayload.gatherPhotos(for: store.players)
+                    ),
+                    preview: SharePreview("Farkle game", icon: Image(systemName: "die.face.5"))
+                ) {
+                    Label("Share this game", systemImage: "square.and.arrow.up")
+                }
+                .tint(AppTheme.accentBlue(contrast))
+
+                Text(
+                    "Share the whole game as a file; open it on another device to import and continue. Saved games keeps your finished and imported games."
+                )
+                .font(.footnote)
+                .foregroundStyle(AppTheme.muted(contrast))
+            } header: {
+                Text("Games")
             }
 
             Section {

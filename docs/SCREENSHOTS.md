@@ -43,10 +43,13 @@ Generated images are written under:
 Each device folder contains named captures:
 
 - `01_ScoreKeypad`
-- `02_MidGame`
+- `02_CommonScores`
 - `03_Players`
 - `04_Settings`
 - `05_RulesLibrary`
+- `06_TVScoreboard` (external-display scoreboard, landscape, via `-externalDisplayPreview`)
+- `07_TVScoreboardIdle` (external-display idle state, landscape)
+- `08_History`
 
 ## Uploading to App Store Connect
 

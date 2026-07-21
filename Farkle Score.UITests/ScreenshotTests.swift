@@ -24,7 +24,8 @@ final class ScreenshotTests: XCTestCase {
 
     func testAppStoreScreenshots() throws {
         captureScoreKeypad()
-        captureMidGame()
+        captureCommonScores()
+        captureHistory()
         capturePlayers()
         captureSettings()
         captureRulesLibrary()
@@ -48,7 +49,7 @@ final class ScreenshotTests: XCTestCase {
         tvApp.launchEnvironment["SCREENSHOT_MODE"] = "1"
         tvApp.launch()
         XCTAssertTrue(
-            tvApp.staticTexts["Latest rolls"].waitForExistence(timeout: 10),
+            tvApp.staticTexts["LIVE"].waitForExistence(timeout: 10),
             "TV scoreboard capture should wait for the live board."
         )
         snapshot("06_TVScoreboard")
@@ -81,17 +82,50 @@ final class ScreenshotTests: XCTestCase {
         snapshot("01_ScoreKeypad")
     }
 
-    private func captureMidGame() {
+    private func captureCommonScores() {
         UITestNavigation.openScoreTabIfPresent(app)
+        UITestNavigation.switchToCommonScoresIfPresent(app)
+        // Undo the keypad capture's scroll so the panel isn't clipped mid-scroll.
+        app.swipeDown(velocity: .fast)
         XCTAssertTrue(
             waitForAnyElement(
                 identifiers: [],
                 labels: ["Undo last entry"],
                 timeout: 8
             ),
-            "Mid-game capture should wait for main panel content."
+            "Common scores capture should wait for main panel content."
         )
-        snapshot("02_MidGame")
+        snapshot("02_CommonScores")
+    }
+
+    private func captureHistory() {
+        UITestNavigation.openScoreTabIfPresent(app)
+        // Back to the keypad layout, where the History button is on screen.
+        let keypadSegment = app.segmentedControls.buttons["Keypad"]
+        if keypadSegment.waitForExistence(timeout: 3) {
+            keypadSegment.tap()
+        }
+        // A container identifier ("farkle.tab.score") cascades over descendants' own
+        // accessibility identifiers, so match the History button by label instead.
+        let historyButton = findElement(identifiers: [], labels: ["History"])
+        XCTAssertTrue(historyButton.waitForExistence(timeout: 8))
+        if !historyButton.isHittable {
+            app.swipeUp(velocity: .slow)
+        }
+        historyButton.tap()
+        XCTAssertTrue(
+            waitForAnyElement(
+                identifiers: [],
+                labels: ["Score history", "History"],
+                timeout: 8
+            ),
+            "History capture should wait for the history sheet."
+        )
+        snapshot("08_History")
+        let done = app.buttons["Done"].firstMatch
+        if done.waitForExistence(timeout: 3), done.isHittable {
+            done.tap()
+        }
     }
 
     private func capturePlayers() {
@@ -124,17 +158,23 @@ final class ScreenshotTests: XCTestCase {
             ),
             "Settings capture should wait for settings sheet content."
         )
-        let appStoreHeader = app.descendants(matching: .any)["farkle.settings.appStoreSectionHeader"]
-        XCTAssertTrue(appStoreHeader.waitForExistence(timeout: 5))
+        // The form is lazy, so bottom sections (like the App Store header) may not exist
+        // until scrolled; anchor on the always-visible first section instead.
+        let appearanceRow = findElement(identifiers: [], labels: ["Appearance"])
+        XCTAssertTrue(appearanceRow.waitForExistence(timeout: 5))
         snapshot("04_Settings")
     }
 
     private func captureRulesLibrary() {
-        let ruleReferences = findElement(
-            identifiers: [],
-            labels: ["Rule references", "Open rule references"]
-        )
-        XCTAssertTrue(ruleReferences.waitForExistence(timeout: 5))
+        // Close the settings sheet from the previous capture, then use the always-visible
+        // rules button in the Players tab header instead of scrolling the settings form.
+        let done = app.buttons["Done"].firstMatch
+        if done.waitForExistence(timeout: 3), done.isHittable {
+            done.tap()
+        }
+        UITestNavigation.openPlayersTabIfPresent(app)
+        let ruleReferences = app.buttons["Rule references"].firstMatch
+        XCTAssertTrue(ruleReferences.waitForExistence(timeout: 8))
         ruleReferences.tap()
 
         XCTAssertTrue(

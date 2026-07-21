@@ -33,6 +33,8 @@ enum AppSettings {
         nonisolated static let showStandingSecondThird = "farkle.showStandingSecondThird"
         /// Circled rank digits for 4th place and below (default off when unset).
         nonisolated static let showStandingFourthPlus = "farkle.showStandingFourthPlus"
+        /// Full-screen scoreboard on external screens / AirPlay mirroring (default on when unset).
+        nonisolated static let externalDisplayEnabled = "farkle.externalDisplayEnabled"
     }
 
     /// UserDefaults key for `@AppStorage` — must match `Key.activeRuleSetId` (template ruleset mirror).
@@ -56,6 +58,8 @@ enum AppSettings {
     nonisolated static let showStandingSecondThirdStorageKey = Key.showStandingSecondThird
 
     nonisolated static let showStandingFourthPlusStorageKey = Key.showStandingFourthPlus
+
+    nonisolated static let externalDisplayEnabledStorageKey = Key.externalDisplayEnabled
 
     /// When true, full `GameStoreState` is mirrored to CloudKit for resume on another device.
     nonisolated static var activeRuleSetId: String {
@@ -131,6 +135,16 @@ enum AppSettings {
     nonisolated static var showStandingFourthPlus: Bool {
         get { defaults.bool(forKey: Key.showStandingFourthPlus) }
         set { defaults.set(newValue, forKey: Key.showStandingFourthPlus) }
+    }
+
+    /// When true, connected external screens show the live scoreboard instead of mirroring.
+    /// Unset key defaults to `true`.
+    nonisolated static var externalDisplayEnabled: Bool {
+        get {
+            if defaults.object(forKey: Key.externalDisplayEnabled) == nil { return true }
+            return defaults.bool(forKey: Key.externalDisplayEnabled)
+        }
+        set { defaults.set(newValue, forKey: Key.externalDisplayEnabled) }
     }
 
     nonisolated static var syncCurrentSession: Bool {

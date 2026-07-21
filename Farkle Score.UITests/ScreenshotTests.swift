@@ -30,6 +30,43 @@ final class ScreenshotTests: XCTestCase {
         captureRulesLibrary()
     }
 
+    /// Captures the external-display scoreboard via the DEBUG `-externalDisplayPreview`
+    /// launch argument (simulators cannot attach real external displays).
+    func testExternalScoreboardScreenshots() throws {
+#if os(iOS)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+#endif
+
+        let tvApp = XCUIApplication()
+        setupSnapshot(tvApp)
+        // The argument-domain appearance override keeps the scoreboard in its TV-friendly
+        // dark look even though screenshot mode defaults the phone UI to light.
+        tvApp.launchArguments += [
+            "-screenshotMode", "-externalDisplayPreview", "-farkle.appearanceMode", "dark",
+        ]
+        tvApp.launchEnvironment["SCREENSHOT_MODE"] = "1"
+        tvApp.launch()
+        XCTAssertTrue(
+            tvApp.staticTexts["Latest rolls"].waitForExistence(timeout: 10),
+            "TV scoreboard capture should wait for the live board."
+        )
+        snapshot("06_TVScoreboard")
+
+        let idleApp = XCUIApplication()
+        setupSnapshot(idleApp)
+        idleApp.launchArguments += [
+            "-screenshotMode", "-externalDisplayPreviewIdle", "-farkle.appearanceMode", "dark",
+        ]
+        idleApp.launchEnvironment["SCREENSHOT_MODE"] = "1"
+        idleApp.launch()
+        XCTAssertTrue(
+            idleApp.staticTexts["Waiting for the first roll…"].waitForExistence(timeout: 10),
+            "TV idle capture should wait for the idle state."
+        )
+        snapshot("07_TVScoreboardIdle")
+    }
+
     private func captureScoreKeypad() {
         UITestNavigation.openScoreTabIfPresent(app)
         UITestNavigation.scrollToRevealScoreControlsIfNeeded(app)

@@ -66,11 +66,15 @@ struct Farkle_Score_App: App {
 
         _gameStore = State(initialValue: store)
         _profileStore = State(initialValue: profiles)
+
+#if os(iOS)
+        ExternalDisplayController.shared.register(gameStore: store, profileStore: profiles)
+#endif
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootContent
                 .environment(gameStore)
                 .environment(profileStore)
                 .preferredColorScheme(
@@ -126,6 +130,17 @@ struct Farkle_Score_App: App {
                     )
                 }
             }
+        }
+    }
+
+    /// Main phone/tablet UI, or — under the DEBUG `-externalDisplayPreview` launch argument —
+    /// the external-display scoreboard rendered in the main window for simulator testing.
+    @ViewBuilder
+    private var rootContent: some View {
+        if ExternalDisplayPreviewMode.isEnabled {
+            ExternalScoreboardView(forceIdle: ExternalDisplayPreviewMode.forceIdle)
+        } else {
+            ContentView()
         }
     }
 

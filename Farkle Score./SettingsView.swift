@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(AppSettings.showStandingBadgesStorageKey) private var showStandingBadges = true
     @AppStorage(AppSettings.showStandingSecondThirdStorageKey) private var showStandingSecondThird = false
     @AppStorage(AppSettings.showStandingFourthPlusStorageKey) private var showStandingFourthPlus = false
+    @AppStorage(AppSettings.externalDisplayEnabledStorageKey) private var externalDisplayEnabled = true
     @State private var showRulesLibrary = false
     @State private var showCustomScoringEditor = false
 
@@ -213,6 +214,27 @@ struct SettingsView: View {
                     Text("Feedback")
                 }
             }
+
+#if os(iOS)
+            Section {
+                Toggle("Scoreboard on TV & external screens", isOn: $externalDisplayEnabled)
+                    .tint(AppTheme.accentBlue(contrast))
+                    .accessibilityHint(
+                        "When on, AirPlay screen mirroring or a connected display shows a full-screen live scoreboard instead of mirroring your phone"
+                    )
+                    .onChange(of: externalDisplayEnabled) { _, _ in
+                        ExternalDisplayController.shared.refresh()
+                    }
+
+                Text(
+                    "Mirror your iPhone to an Apple TV (or plug into any screen) and everyone sees a live scoreboard while you keep scoring on your phone. Turn off to mirror your screen as usual."
+                )
+                .font(.footnote)
+                .foregroundStyle(AppTheme.muted(contrast))
+            } header: {
+                Text("Apple TV & External Screens")
+            }
+#endif
 
             Section {
                 Toggle(

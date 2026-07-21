@@ -1127,6 +1127,10 @@ struct HistoryRoundMatrixTests {
 
 // MARK: - App settings
 
+// Serialized: these tests all mutate shared `UserDefaults.standard` keys, and Swift
+// Testing otherwise runs them in parallel, causing nondeterministic failures. Any new
+// test that touches UserDefaults/AppSettings belongs in this suite.
+@Suite(.serialized)
 struct AppSettingsTests {
 
     @Test func hapticsEnabledUnsetDefaultsTrueAndPersistsFalse() {
@@ -1288,6 +1292,22 @@ struct AppSettingsTests {
         }
         UserDefaults.standard.removeObject(forKey: key)
         #expect(AppSettings.showStandingFourthPlus == false)
+    }
+
+    // Lives here (not in TurnScoreBuilderTests) because it writes shared UserDefaults
+    // and must run serialized with the other AppSettings tests.
+    @Test func historyDisplayModePersistsBreakdown() {
+        let key = AppSettings.historyDisplayModeStorageKey
+        let previous = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let previous {
+                UserDefaults.standard.set(previous, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        AppSettings.historyDisplayMode = .breakdown
+        #expect(AppSettings.historyDisplayMode == .breakdown)
     }
 }
 
@@ -1515,20 +1535,6 @@ struct TurnScoreBuilderTests {
         #expect(HistoryDisplayMode.table.next == .list)
         #expect(HistoryDisplayMode.list.next == .breakdown)
         #expect(HistoryDisplayMode.breakdown.next == .table)
-    }
-
-    @Test func historyDisplayModePersistsBreakdown() {
-        let key = AppSettings.historyDisplayModeStorageKey
-        let previous = UserDefaults.standard.object(forKey: key)
-        defer {
-            if let previous {
-                UserDefaults.standard.set(previous, forKey: key)
-            } else {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-        }
-        AppSettings.historyDisplayMode = .breakdown
-        #expect(AppSettings.historyDisplayMode == .breakdown)
     }
 
     @Test func prepareToEditHistoryEntryRestoresTurnEntriesWhenBreakdownPresent() {
@@ -1909,7 +1915,9 @@ struct QuickPlayerSetupTests {
         #expect(store.players.count == 1)
         #expect(store.players[0].avatarEmoji == "🏆")
         #expect(store.players[0].avatarColorIndex == 7)
-        #expect(store.players[0].profileId == nil)
+        // Matching a saved profile by name links it, so photo adoption and
+        // roster/library sync can key off the profile id.
+        #expect(store.players[0].profileId == profile.id)
     }
 
     @Test func quickSetupSyncsToLibraryAndClearsExemptions() {

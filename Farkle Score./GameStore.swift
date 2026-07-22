@@ -79,20 +79,36 @@ final class GameStore {
         return GameStore(players: p, activePlayerIndex: 0, currentInput: "1250")
     }
 
-    /// Deterministic mid-game state for App Store screenshots.
+    /// Deterministic mid-game state for App Store screenshots: a full six-player roster with
+    /// customized avatars and three rounds of history (including farkles) so player lists,
+    /// round tables, and the TV scoreboard all look lived-in.
     static var screenshotFixture: GameStore {
-        var players = defaultPlayers()
-        players[0].score = 8700
-        players[1].score = 4200
-        players[2].score = 2100
-        let t0 = Date(timeIntervalSinceReferenceDate: 700_000_000)
-        let t1 = Date(timeIntervalSinceReferenceDate: 700_000_100)
-        let t2 = Date(timeIntervalSinceReferenceDate: 700_000_200)
-        let history: [ScoreEntry] = [
-            ScoreEntry(playerId: players[0].id, amount: 500, timestamp: t0),
-            ScoreEntry(playerId: players[1].id, amount: 300, timestamp: t1),
-            ScoreEntry(playerId: players[2].id, amount: 400, timestamp: t2),
+        let players = [
+            Player(name: "Alice", score: 8700, avatarEmoji: "🎲", avatarColorIndex: 0),
+            Player(name: "Bob", score: 4200, avatarEmoji: "🔥", avatarColorIndex: 1),
+            Player(name: "Chris", score: 2100, avatarColorIndex: 2),
+            Player(name: "Dana", score: 6350, avatarEmoji: "🦄", avatarColorIndex: 3),
+            Player(name: "Eli", score: 3800, avatarEmoji: "🍀", avatarColorIndex: 4),
+            Player(name: "Faye", score: 5150, avatarEmoji: "⭐", avatarColorIndex: 7),
         ]
+        // Roster-order entries so HistoryRoundMatrix groups them into rounds 1–3;
+        // zero amounts render as farkled turns.
+        let roundAmounts: [[Int]] = [
+            [500, 300, 0, 450, 150, 600],
+            [1000, 0, 400, 750, 300, 0],
+            [250, 550, 150, 900, 100, 350],
+        ]
+        let start = Date(timeIntervalSinceReferenceDate: 700_000_000)
+        var history: [ScoreEntry] = []
+        for (round, amounts) in roundAmounts.enumerated() {
+            for (slot, amount) in amounts.enumerated() {
+                history.append(ScoreEntry(
+                    playerId: players[slot].id,
+                    amount: amount,
+                    timestamp: start.addingTimeInterval(Double(round * 6 + slot) * 120)
+                ))
+            }
+        }
         return GameStore(
             players: players,
             activePlayerIndex: 0,

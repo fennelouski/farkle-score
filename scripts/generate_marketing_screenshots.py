@@ -184,30 +184,27 @@ def draw_caption(canvas, text, dark_bg, y=170, size=104, max_w=1140, sub=None):
     d = ImageDraw.Draw(canvas)
     color = WHITE if dark_bg else DARK_TEXT
     f = font(size)
-    # wrap
-    words = text.split()
-    lines, cur = [], ""
-    for wd in words:
-        trial = (cur + " " + wd).strip()
-        tb = d.textbbox((0, 0), trial, font=f)
-        if tb[2] - tb[0] > max_w and cur:
-            lines.append(cur)
-            cur = wd
-        else:
-            cur = trial
-    lines.append(cur)
+
+    def wrap(fnt):
+        # Explicit "\n" forces a line break; each paragraph wraps to max_w.
+        out = []
+        for para in text.split("\n"):
+            cur = ""
+            for wd in para.split():
+                trial = (cur + " " + wd).strip()
+                tb = d.textbbox((0, 0), trial, font=fnt)
+                if tb[2] - tb[0] > max_w and cur:
+                    out.append(cur)
+                    cur = wd
+                else:
+                    cur = trial
+            out.append(cur)
+        return out
+
+    lines = wrap(f)
     if len(lines) > 2:  # shrink once if needed
         f = font(int(size * 0.85))
-        lines, cur = [], ""
-        for wd in words:
-            trial = (cur + " " + wd).strip()
-            tb = d.textbbox((0, 0), trial, font=f)
-            if tb[2] - tb[0] > max_w and cur:
-                lines.append(cur)
-                cur = wd
-            else:
-                cur = trial
-        lines.append(cur)
+        lines = wrap(f)
     line_h = int(size * 1.18)
     yy = y
     for line in lines:
@@ -332,7 +329,7 @@ def dual_phone(index, slug, caption, sub, left_shot, right_shot):
 # ---- The 15 images ----
 
 phone_feature(1, "keep_score_skip_math", "01_ScoreKeypad.png",
-              "Keep score. Skip the math.",
+              "Keep score.\nSkip the math.",
               sub="The fast, friendly Farkle scorekeeper")
 phone_feature(2, "game_night_effortless", "01_ScoreKeypad.png",
               "Game night scoring made effortless",

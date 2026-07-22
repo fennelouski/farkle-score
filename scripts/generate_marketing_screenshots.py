@@ -7,13 +7,25 @@ scoreboard in a TV mockup with a phone in front.
 """
 
 import os
+import sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 import pathlib
 REPO = pathlib.Path(__file__).resolve().parent.parent
-RAW = str(REPO / "screenshots/en-US/iPhone 17 Pro Max")
-OUT = str(REPO / "screenshots/marketing")
-W, H = 1320, 2868
+IPAD = "ipad" in sys.argv[1:]
+if IPAD:
+    RAW = str(REPO / "screenshots/en-US/iPad Pro 13-inch (M5)")
+    OUT = str(REPO / "screenshots/marketing-ipad")
+    W, H = 2064, 2752  # App Store iPad Pro 13" portrait
+else:
+    RAW = str(REPO / "screenshots/en-US/iPhone 17 Pro Max")
+    OUT = str(REPO / "screenshots/marketing")
+    W, H = 1320, 2868
+S = W / 1320  # layout constants below were tuned on the 1320-wide iPhone canvas
+
+
+def s(v):
+    return int(v * S)
 
 # App palette
 NAVY_TOP = (14, 21, 32)
@@ -64,7 +76,8 @@ def background(dark=False, glows=None):
     base = gradient((W, H), NAVY_TOP if dark else LIGHT_TOP,
                     NAVY_BOT if dark else LIGHT_BOT).convert("RGBA")
     for (cx, cy, r, color, a) in (glows or []):
-        add_glow(base, (cx, cy), r, color, a)
+        # glow coordinates were tuned on the 1320x2868 canvas
+        add_glow(base, (int(cx * W / 1320), int(cy * H / 2868)), s(r), color, a)
     return base
 
 
@@ -87,8 +100,9 @@ def drop_shadow(canvas, box, radius, blur=60, alpha=110, offset=(0, 36)):
     canvas.alpha_composite(sh)
 
 
-def phone_framed(shot, target_w, corner=150, bezel=24, top_crop=0):
+def phone_framed(shot, target_w, corner=150, bezel=None, top_crop=0):
     """Return an RGBA phone mockup image of width target_w."""
+    bezel = bezel if bezel is not None else s(24)
     img = shot.convert("RGB")
     if top_crop:
         img = img.crop((0, top_crop, img.width, img.height))
@@ -111,39 +125,42 @@ def phone_framed(shot, target_w, corner=150, bezel=24, top_crop=0):
     return frame
 
 
-def tv_framed(shot, target_w, bezel=20):
+def tv_framed(shot, target_w, bezel=None):
     """TV mockup: dark bezel around the landscape scoreboard + stand."""
+    bezel = bezel if bezel is not None else s(20)
     img = shot.convert("RGB")
     inner_w = target_w - 2 * bezel
     inner_h = int(img.height * inner_w / img.width)
     img = img.resize((inner_w, inner_h), Image.LANCZOS)
     frame_w = target_w
     screen_h = inner_h + 2 * bezel
-    stand_h = 110
+    stand_h = s(110)
     frame = Image.new("RGBA", (frame_w, screen_h + stand_h), (0, 0, 0, 0))
     d = ImageDraw.Draw(frame)
     # panel
-    d.rounded_rectangle([0, 0, frame_w - 1, screen_h - 1], radius=26, fill=(6, 8, 12, 255))
-    d.rounded_rectangle([3, 3, frame_w - 4, screen_h - 4], radius=24,
+    d.rounded_rectangle([0, 0, frame_w - 1, screen_h - 1], radius=s(26), fill=(6, 8, 12, 255))
+    d.rounded_rectangle([3, 3, frame_w - 4, screen_h - 4], radius=s(24),
                         outline=(66, 72, 84, 255), width=3)
     frame.paste(img, (bezel, bezel))
     # stand: neck + base
     cx = frame_w // 2
-    d.rectangle([cx - 70, screen_h, cx + 70, screen_h + stand_h - 34], fill=(38, 44, 54, 255))
-    d.rounded_rectangle([cx - 330, screen_h + stand_h - 40, cx + 330, screen_h + stand_h - 6],
-                        radius=18, fill=(52, 59, 71, 255))
+    d.rectangle([cx - s(70), screen_h, cx + s(70), screen_h + stand_h - s(34)],
+                fill=(38, 44, 54, 255))
+    d.rounded_rectangle([cx - s(330), screen_h + stand_h - s(40), cx + s(330),
+                         screen_h + stand_h - s(6)],
+                        radius=s(18), fill=(52, 59, 71, 255))
     return frame, screen_h
 
 
 def airplay_pill(text="AirPlay"):
-    f = font(44)
-    pad_x, pad_y = 34, 22
-    glyph_w = 64
+    f = font(s(44))
+    pad_x, pad_y = s(34), s(22)
+    glyph_w = s(64)
     tmp = ImageDraw.Draw(Image.new("RGBA", (10, 10)))
     tb = tmp.textbbox((0, 0), text, font=f)
     tw, th = tb[2] - tb[0], tb[3] - tb[1]
-    w = pad_x * 2 + glyph_w + 16 + tw
-    h = pad_y * 2 + max(th, 52)
+    w = pad_x * 2 + glyph_w + s(16) + tw
+    h = pad_y * 2 + max(th, s(52))
     pill = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     d = ImageDraw.Draw(pill)
     d.rounded_rectangle([0, 0, w - 1, h - 1], radius=h // 2, fill=(12, 17, 26, 235))
@@ -151,16 +168,17 @@ def airplay_pill(text="AirPlay"):
                         outline=(BLUE_BRIGHT + (200,)), width=3)
     # AirPlay glyph: screen outline + triangle
     gx = pad_x
-    gy = h // 2 - 26
-    d.rounded_rectangle([gx, gy, gx + 56, gy + 38], radius=8,
-                        outline=(255, 255, 255, 255), width=5)
-    d.polygon([(gx + 28, gy + 26), (gx + 6, gy + 52), (gx + 50, gy + 52)],
+    gy = h // 2 - s(26)
+    d.rounded_rectangle([gx, gy, gx + s(56), gy + s(38)], radius=s(8),
+                        outline=(255, 255, 255, 255), width=s(5))
+    d.polygon([(gx + s(28), gy + s(26)), (gx + s(6), gy + s(52)), (gx + s(50), gy + s(52))],
               fill=(255, 255, 255, 255))
-    d.text((gx + glyph_w + 16, h // 2 - th // 2 - tb[1]), text, font=f, fill=WHITE)
+    d.text((gx + glyph_w + s(16), h // 2 - th // 2 - tb[1]), text, font=f, fill=WHITE)
     return pill
 
 
 def draw_caption(canvas, text, dark_bg, y=170, size=104, max_w=1140, sub=None):
+    y, size, max_w = s(y), s(size), s(max_w)
     d = ImageDraw.Draw(canvas)
     color = WHITE if dark_bg else DARK_TEXT
     f = font(size)
@@ -195,20 +213,26 @@ def draw_caption(canvas, text, dark_bg, y=170, size=104, max_w=1140, sub=None):
         d.text(((W - (tb[2] - tb[0])) // 2 - tb[0], yy), line, font=f, fill=color)
         yy += line_h
     # accent bar
-    bar_w = 220
-    d.rounded_rectangle([(W - bar_w) // 2, yy + 26, (W + bar_w) // 2, yy + 44],
-                        radius=9, fill=YELLOW)
+    bar_w = s(220)
+    d.rounded_rectangle([(W - bar_w) // 2, yy + s(26), (W + bar_w) // 2, yy + s(44)],
+                        radius=s(9), fill=YELLOW)
     if sub:
-        fs = font(46, bold=True)
+        fs = font(s(46), bold=True)
         tb = d.textbbox((0, 0), sub, font=fs)
-        d.text(((W - (tb[2] - tb[0])) // 2 - tb[0], yy + 84), sub, font=fs,
+        d.text(((W - (tb[2] - tb[0])) // 2 - tb[0], yy + s(84)), sub, font=fs,
                fill=MUTED_DARK if dark_bg else MUTED_LIGHT)
-        yy += 84 + 56
-    return yy + 70  # content start y
+        yy += s(84 + 56)
+    return yy + s(70)  # content start y
 
 
 def load(name):
     return Image.open(os.path.join(RAW, name))
+
+
+def load_tv(name):
+    # TV mockup content is device-independent; the iPhone landscape capture has the
+    # widest, most TV-like aspect, so always use it.
+    return Image.open(str(REPO / "screenshots/en-US/iPhone 17 Pro Max" / name))
 
 
 def save(canvas, index, slug):
@@ -223,15 +247,15 @@ def phone_feature(index, slug, shot_name, caption, sub=None, dark=False, glows=N
     glows = glows or [(240, 500, 420, BLUE, 40), (1120, 2500, 460, YELLOW, 34)]
     canvas = background(dark, glows)
     content_y = draw_caption(canvas, caption, dark, sub=sub)
-    avail_h = H - content_y - 90
-    phone = phone_framed(load(shot_name), 1010, top_crop=top_crop)
+    avail_h = H - content_y - s(90)
+    phone = phone_framed(load(shot_name), s(1010), top_crop=top_crop)
     if phone.height > avail_h:
         scale = avail_h / phone.height
         phone = phone.resize((int(phone.width * scale), int(phone.height * scale)),
                              Image.LANCZOS)
     x = (W - phone.width) // 2
-    y = content_y + (avail_h - phone.height) // 2 + 20
-    drop_shadow(canvas, (x, y, x + phone.width, y + phone.height), 170)
+    y = content_y + (avail_h - phone.height) // 2 + s(20)
+    drop_shadow(canvas, (x, y, x + phone.width, y + phone.height), s(170))
     canvas.alpha_composite(phone, (x, y))
     save(canvas, index, slug)
 
@@ -241,23 +265,23 @@ def tv_composite(index, slug, caption, sub=None, tv_shot="06_TVScoreboard.png",
     canvas = background(True, [(300, 480, 460, BLUE, 46), (1050, 1500, 420, GREEN, 26),
                                (700, 2600, 500, YELLOW, 30)])
     content_y = draw_caption(canvas, caption, True, sub=sub)
-    tv, screen_h = tv_framed(load(tv_shot), 1240)
+    tv, screen_h = tv_framed(load_tv(tv_shot), s(1240))
     tv_x = (W - tv.width) // 2
-    tv_y = content_y + 120
-    drop_shadow(canvas, (tv_x, tv_y, tv_x + tv.width, tv_y + screen_h), 26, blur=70,
+    tv_y = content_y + s(120)
+    drop_shadow(canvas, (tv_x, tv_y, tv_x + tv.width, tv_y + screen_h), s(26), blur=70,
                 alpha=130)
     canvas.alpha_composite(tv, (tv_x, tv_y))
     if show_pill:
         pill = airplay_pill()
-        canvas.alpha_composite(pill, ((W - pill.width) // 2, tv_y - pill.height - 36))
-    phone = phone_framed(load(phone_shot), 640)
-    max_phone_h = H - (tv_y + tv.height) + 700
-    if phone.height > 1620:
-        s = 1620 / phone.height
-        phone = phone.resize((int(phone.width * s), int(phone.height * s)), Image.LANCZOS)
-    px = W - phone.width - 90 if phone_side == "right" else 90
-    py = H - phone.height - 110
-    drop_shadow(canvas, (px, py, px + phone.width, py + phone.height), 150, blur=70,
+        canvas.alpha_composite(pill, ((W - pill.width) // 2, tv_y - pill.height - s(36)))
+    # a 4:3 tablet at phone width would bury the TV; keep the companion smaller on iPad
+    phone = phone_framed(load(phone_shot), s(520) if IPAD else s(640))
+    if phone.height > s(1620):
+        sc = s(1620) / phone.height
+        phone = phone.resize((int(phone.width * sc), int(phone.height * sc)), Image.LANCZOS)
+    px = W - phone.width - s(90) if phone_side == "right" else s(90)
+    py = H - phone.height - s(110)
+    drop_shadow(canvas, (px, py, px + phone.width, py + phone.height), s(150), blur=70,
                 alpha=150)
     canvas.alpha_composite(phone, (px, py))
     save(canvas, index, slug)
@@ -266,30 +290,30 @@ def tv_composite(index, slug, caption, sub=None, tv_shot="06_TVScoreboard.png",
 def tv_solo(index, slug, caption, sub=None, tv_shot="06_TVScoreboard.png"):
     canvas = background(True, [(280, 520, 480, BLUE, 48), (1080, 2350, 520, YELLOW, 34)])
     content_y = draw_caption(canvas, caption, True, sub=sub)
-    tv, screen_h = tv_framed(load(tv_shot), 1250)
+    tv, screen_h = tv_framed(load_tv(tv_shot), s(1250))
     tv_x = (W - tv.width) // 2
-    tv_y = content_y + (H - content_y - tv.height) // 2 - 60
-    drop_shadow(canvas, (tv_x, tv_y, tv_x + tv.width, tv_y + screen_h), 26, blur=70,
+    tv_y = content_y + (H - content_y - tv.height) // 2 - s(60)
+    drop_shadow(canvas, (tv_x, tv_y, tv_x + tv.width, tv_y + screen_h), s(26), blur=70,
                 alpha=130)
     canvas.alpha_composite(tv, (tv_x, tv_y))
     pill = airplay_pill()
-    canvas.alpha_composite(pill, ((W - pill.width) // 2, tv_y + tv.height + 70))
+    canvas.alpha_composite(pill, ((W - pill.width) // 2, tv_y + tv.height + s(70)))
     save(canvas, index, slug)
 
 
 def dual_phone(index, slug, caption, sub, left_shot, right_shot):
     canvas = background(False, [(260, 560, 440, BLUE, 42), (1100, 2450, 470, GREEN, 30)])
     content_y = draw_caption(canvas, caption, False, sub=sub)
-    avail_h = H - content_y - 120
-    ph_l = phone_framed(load(left_shot), 760)
-    ph_r = phone_framed(load(right_shot), 760)
-    scale = min(1.0, (avail_h - 160) / ph_l.height)
+    avail_h = H - content_y - s(120)
+    ph_l = phone_framed(load(left_shot), s(760))
+    ph_r = phone_framed(load(right_shot), s(760))
+    scale = min(1.0, (avail_h - s(160)) / ph_l.height)
     ph_l = ph_l.resize((int(ph_l.width * scale), int(ph_l.height * scale)), Image.LANCZOS)
     ph_r = ph_r.resize((int(ph_r.width * scale), int(ph_r.height * scale)), Image.LANCZOS)
     ph_l = ph_l.rotate(4, expand=True, resample=Image.BICUBIC)
     ph_r = ph_r.rotate(-4, expand=True, resample=Image.BICUBIC)
-    lx, ly = 40, content_y + 120
-    rx, ry = W - ph_r.width - 40, content_y + 240
+    lx, ly = s(40), content_y + s(120)
+    rx, ry = W - ph_r.width - s(40), content_y + s(240)
     for img, (x, y) in ((ph_l, (lx, ly)), (ph_r, (rx, ry))):
         sh = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
         blurred = img.split()[3].point(lambda a: min(a, 120))

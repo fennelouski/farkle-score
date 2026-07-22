@@ -82,6 +82,9 @@ struct GameRootView: View {
                 }
                 .accessibilityIdentifier("farkle.tab.players")
         }
+#if os(iOS)
+        .statusBarHidden(true)
+#endif
     }
 }
 

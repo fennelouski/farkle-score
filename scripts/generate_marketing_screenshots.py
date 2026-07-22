@@ -22,8 +22,8 @@ if IPAD:
 else:
     RAW = str(REPO / "screenshots/en-US/iPhone 17 Pro Max")
     OUT = str(REPO / "screenshots/marketing")
-    W, H = 1320, 2868
-    S = 1.0  # layout constants below were tuned on this canvas
+    W, H = 1284, 2778  # App Store 6.5" — ASC rejects 1320×2868 for this listing
+    S = W / 1320  # layout constants below were tuned on the 1320×2868 canvas
 
 
 def s(v):

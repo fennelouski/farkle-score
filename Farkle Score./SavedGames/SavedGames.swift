@@ -83,6 +83,48 @@ final class SavedGamesStore {
         self.games = (try? persistence.load()) ?? []
     }
 
+    /// Preloaded, in-memory store for screenshots and previews (no disk read).
+    init(fixtureGames: [SavedGame]) {
+        self.persistence = .default
+        self.games = fixtureGames
+    }
+
+    /// Deterministic archive (one past game, one imported) for App Store screenshots.
+    static var screenshotFixture: SavedGamesStore {
+        let base = GameStore.screenshotFixture.snapshot
+
+        var finishedOwn = base
+        finishedOwn.gamePhase = .finished
+
+        var imported = base
+        let names = ["Riley", "Sam", "Jordan", "Casey"]
+        let scores = [10250, 8600, 7300, 5100]
+        imported.players = imported.players.enumerated().map { index, player in
+            var p = player
+            p.name = names[index % names.count]
+            p.score = scores[index % scores.count]
+            return p
+        }
+        imported.gamePhase = .finished
+
+        let ownEntry = SavedGame(
+            savedAt: Date(timeIntervalSinceReferenceDate: 700_100_000),
+            isImported: false,
+            state: finishedOwn,
+            scoringPreferences: nil,
+            photos: [:]
+        )
+        let importedEntry = SavedGame(
+            savedAt: Date(timeIntervalSinceReferenceDate: 700_200_000),
+            isImported: true,
+            importedFrom: "Alex",
+            state: imported,
+            scoringPreferences: nil,
+            photos: [:]
+        )
+        return SavedGamesStore(fixtureGames: [importedEntry, ownEntry])
+    }
+
     /// Newest first.
     func add(_ game: SavedGame) {
         games.insert(game, at: 0)

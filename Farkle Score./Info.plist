@@ -21,8 +21,6 @@
 	<string></string>
 	<key>FarkleSupportURL</key>
 	<string></string>
-	<key>LSSupportsOpeningDocumentsInPlace</key>
-	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Farkle Score uses the camera only when you choose to take a photo for a player’s avatar.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

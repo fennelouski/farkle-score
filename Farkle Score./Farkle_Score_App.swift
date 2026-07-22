@@ -67,7 +67,7 @@ struct Farkle_Score_App: App {
             }
         }
 
-        let savedGames = SavedGamesStore()
+        let savedGames = ScreenshotMode.isEnabled ? SavedGamesStore.screenshotFixture : SavedGamesStore()
         if !ScreenshotMode.isEnabled {
             store.onArchiveOutgoingGame = { snapshot in
                 savedGames.add(SavedGame.capture(snapshot))

@@ -5,11 +5,12 @@ scheme("Farkle Score. Screenshots")
 
 project("Farkle Score..xcodeproj")
 
+# Mac screenshots need a separate `snapshot` run/toolchain; this fastlane rejects
+# "Mac" in the devices array, so the App Store simulator set is generated here.
 devices([
   "iPhone 17 Pro Max",
   "iPad Pro 13-inch (M5)",
-  "iPad Pro 11-inch (M5)",
-  "Mac"
+  "iPad Pro 11-inch (M5)"
 ])
 
 languages([

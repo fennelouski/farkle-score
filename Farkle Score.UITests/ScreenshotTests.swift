@@ -4,6 +4,9 @@
 //
 
 import XCTest
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @MainActor
 final class ScreenshotTests: XCTestCase {
@@ -15,9 +18,15 @@ final class ScreenshotTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+#if os(iOS)
+        // Marketing set: iPhone shots in portrait, iPad shots in landscape.
+        XCUIDevice.shared.orientation =
+            UIDevice.current.userInterfaceIdiom == .pad ? .landscapeLeft : .portrait
+#endif
         app = XCUIApplication()
         setupSnapshot(app)
-        app.launchArguments += ["-screenshotMode"]
+        // Dark appearance via the argument domain, overriding screenshot mode's light default.
+        app.launchArguments += ["-screenshotMode", "-farkle.appearanceMode", "dark"]
         app.launchEnvironment["SCREENSHOT_MODE"] = "1"
         app.launch()
     }
@@ -36,7 +45,6 @@ final class ScreenshotTests: XCTestCase {
     func testExternalScoreboardScreenshots() throws {
 #if os(iOS)
         XCUIDevice.shared.orientation = .landscapeLeft
-        defer { XCUIDevice.shared.orientation = .portrait }
 #endif
 
         let tvApp = XCUIApplication()

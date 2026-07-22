@@ -14,14 +14,16 @@ import pathlib
 REPO = pathlib.Path(__file__).resolve().parent.parent
 IPAD = "ipad" in sys.argv[1:]
 if IPAD:
+    # Landscape iPad set (raw captures are taken in landscape).
     RAW = str(REPO / "screenshots/en-US/iPad Pro 13-inch (M5)")
     OUT = str(REPO / "screenshots/marketing-ipad")
-    W, H = 2064, 2752  # App Store iPad Pro 13" portrait
+    W, H = 2752, 2064  # App Store iPad Pro 13" landscape
+    S = 1.5  # hand-picked: W-proportional type is too big for the short canvas
 else:
     RAW = str(REPO / "screenshots/en-US/iPhone 17 Pro Max")
     OUT = str(REPO / "screenshots/marketing")
     W, H = 1320, 2868
-S = W / 1320  # layout constants below were tuned on the 1320-wide iPhone canvas
+    S = 1.0  # layout constants below were tuned on this canvas
 
 
 def s(v):
@@ -242,7 +244,7 @@ def save(canvas, index, slug):
     print("wrote", path)
 
 
-def phone_feature(index, slug, shot_name, caption, sub=None, dark=False, glows=None,
+def phone_feature(index, slug, shot_name, caption, sub=None, dark=True, glows=None,
                   top_crop=0):
     glows = glows or [(240, 500, 420, BLUE, 40), (1120, 2500, 460, YELLOW, 34)]
     canvas = background(dark, glows)
@@ -302,8 +304,8 @@ def tv_solo(index, slug, caption, sub=None, tv_shot="06_TVScoreboard.png"):
 
 
 def dual_phone(index, slug, caption, sub, left_shot, right_shot):
-    canvas = background(False, [(260, 560, 440, BLUE, 42), (1100, 2450, 470, GREEN, 30)])
-    content_y = draw_caption(canvas, caption, False, sub=sub)
+    canvas = background(True, [(260, 560, 440, BLUE, 42), (1100, 2450, 470, GREEN, 30)])
+    content_y = draw_caption(canvas, caption, True, sub=sub)
     avail_h = H - content_y - s(120)
     ph_l = phone_framed(load(left_shot), s(760))
     ph_r = phone_framed(load(right_shot), s(760))

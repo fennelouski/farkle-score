@@ -42,12 +42,40 @@ enum AppTheme {
     }
 
     /// Window / full-screen chrome.
-    static let background = color(
+    private static let backgroundUIColor = dynamicUIColor(
         light: UIColor(red: 0.95, green: 0.96, blue: 0.98, alpha: 1),
         dark: UIColor(red: 0.07, green: 0.09, blue: 0.12, alpha: 1),
         lightHighContrast: UIColor(red: 1, green: 1, blue: 1, alpha: 1),
         darkHighContrast: UIColor(red: 0, green: 0, blue: 0, alpha: 1)
     )
+
+    static let background = Color(uiColor: backgroundUIColor)
+
+    /// `background` nudged toward an accent color (the active player's), resolved per trait
+    /// collection so light/dark/high-contrast all blend from their own base.
+    static func background(tintedToward accent: Color, fraction: CGFloat = 0.22) -> Color {
+        let accentUI = UIColor(accent)
+        return Color(uiColor: UIColor { traits in
+            blend(
+                backgroundUIColor.resolvedColor(with: traits),
+                accentUI.resolvedColor(with: traits),
+                fraction
+            )
+        })
+    }
+
+    private static func blend(_ base: UIColor, _ tint: UIColor, _ fraction: CGFloat) -> UIColor {
+        var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
+        var tr: CGFloat = 0, tg: CGFloat = 0, tb: CGFloat = 0, ta: CGFloat = 0
+        base.getRed(&br, green: &bg, blue: &bb, alpha: &ba)
+        tint.getRed(&tr, green: &tg, blue: &tb, alpha: &ta)
+        return UIColor(
+            red: br + (tr - br) * fraction,
+            green: bg + (tg - bg) * fraction,
+            blue: bb + (tb - bb) * fraction,
+            alpha: ba
+        )
+    }
 
     static let cardFill = color(
         light: UIColor(red: 0.91, green: 0.93, blue: 0.96, alpha: 1),
@@ -113,6 +141,12 @@ enum AppTheme {
 #else
 
     static let background = Color(red: 0.07, green: 0.09, blue: 0.12)
+
+    /// Player tint is iOS-only; other platforms keep the plain background.
+    static func background(tintedToward accent: Color, fraction: CGFloat = 0.22) -> Color {
+        background
+    }
+
     static let cardFill = Color(red: 0.10, green: 0.12, blue: 0.16)
     static let cardStroke = Color.white.opacity(0.18)
     static let keypadButtonFill = Color(red: 0.14, green: 0.16, blue: 0.20)

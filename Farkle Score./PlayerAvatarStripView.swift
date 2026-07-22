@@ -6,6 +6,9 @@
 import SwiftUI
 
 struct PlayerAvatarStripView: View {
+    /// When set, a manage-players button is appended after the last player.
+    var onManagePlayers: (() -> Void)? = nil
+
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
     @State private var draggingPlayerID: UUID?
@@ -21,11 +24,43 @@ struct PlayerAvatarStripView: View {
                 ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
                     avatarButton(index: index, player: player)
                 }
+                if let onManagePlayers {
+                    managePlayersButton(action: onManagePlayers)
+                }
             }
             .padding(.horizontal, 4)
             .padding(.vertical, 4)
         }
         .accessibilityLabel("Players")
+    }
+
+    private func managePlayersButton(action: @escaping () -> Void) -> some View {
+        VStack(spacing: 6) {
+            Button(action: action) {
+                Image(systemName: "person.2.fill")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.accentBlue(contrast))
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(AppTheme.cardFill))
+                    .overlay {
+                        Circle()
+                            .stroke(AppTheme.stroke(contrast), lineWidth: 1)
+                            .frame(width: 44, height: 44)
+                    }
+            }
+            .buttonStyle(BorderlessButtonStyle())
+
+            Text("Players")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(AppTheme.muted(contrast))
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Players")
+        .accessibilityHint("Opens player setup, saved players, and settings")
+        .accessibilityIdentifier("farkle.players.open")
     }
 
     private func avatarButton(index: Int, player: Player) -> some View {

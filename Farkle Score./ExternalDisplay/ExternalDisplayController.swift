@@ -72,6 +72,10 @@ final class ExternalDisplayController {
         )
         host.view.backgroundColor = .black
 
+        // TVs overscan: without compensation the outer edges (header, first row) get
+        // cropped. `.scale` shrinks the window into the overscan-safe area.
+        scene.screen.overscanCompensation = .scale
+
         let newWindow = UIWindow(windowScene: scene)
         newWindow.rootViewController = host
         newWindow.isHidden = false

@@ -23,15 +23,6 @@ struct MainPanelView: View {
     @AppStorage(AppSettings.historyShowTimesStorageKey) private var historyShowTimes = true
     @AppStorage(AppSettings.historyDisplayModeStorageKey) private var historyDisplayModeRaw = HistoryDisplayMode.table.rawValue
     @State private var rowsShowingTotals: Set<Int> = []
-    @ScaledMetric(relativeTo: .title) private var turnHeaderAvatarSize: CGFloat = 48
-
-    private var activeName: String {
-        store.activePlayer?.name ?? "—"
-    }
-
-    private var activeScore: Int {
-        store.activePlayer?.score ?? 0
-    }
 
     private var leaderName: String {
         store.winner?.name ?? "—"
@@ -113,94 +104,21 @@ struct MainPanelView: View {
 
     private var header: some View {
         Group {
-            if stackVertically {
+            if layoutStyle == .phoneTabs {
+                // The turn title lives in the sticky scroll header on iPhone.
+                headerActions
+            } else if stackVertically {
                 VStack(alignment: .leading, spacing: 12) {
-                    titleBlock
+                    TurnTitleView(fillsWidth: true)
                     headerActions
                 }
             } else {
                 HStack(alignment: .top) {
-                    titleBlock
+                    TurnTitleView(fillsWidth: false)
                     Spacer(minLength: 8)
                     headerActions
                 }
             }
-        }
-    }
-
-    private var titleBlock: some View {
-        HStack(alignment: .center, spacing: 12) {
-            activePlayerAvatar
-
-            VStack(spacing: 8) {
-                Text(turnTitle)
-                    .font(.system(.title, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.primaryText)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-                    .accessibilityHidden(true)
-
-                HStack(spacing: 4) {
-                    Text(scoreTitle)
-                        .foregroundStyle(AppTheme.muted(contrast))
-                    Text(AppTheme.formatScore(activeScore))
-                        .fontWeight(.bold)
-                        .foregroundStyle(AppTheme.accentBlue(contrast))
-                        .contentTransition(reduceMotion ? .identity : .numericText())
-                        .animation(reduceMotion ? nil : .snappy, value: activeScore)
-                }
-                .font(.title3)
-                .accessibilityHidden(true)
-            }
-        }
-        .frame(maxWidth: stackVertically ? .infinity : nil, alignment: .center)
-        .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityTitleLabel)
-        .accessibilityAddTraits(.isHeader)
-    }
-
-    @ViewBuilder
-    private var activePlayerAvatar: some View {
-        if store.gamePhase != .finished, let player = store.activePlayer {
-            PlayerAvatarView(
-                player: player,
-                allPlayers: store.players,
-                listIndex: store.activePlayerIndex,
-                size: turnHeaderAvatarSize
-            )
-            .overlay {
-                Circle()
-                    .stroke(AppTheme.accentYellow(contrast), lineWidth: 3)
-                    .frame(width: turnHeaderAvatarSize + 4, height: turnHeaderAvatarSize + 4)
-            }
-            .accessibilityHidden(true)
-        }
-    }
-
-    private var turnTitle: String {
-        switch store.gamePhase {
-        case .finished:
-            return "Game complete"
-        case .finalRound, .regular:
-            return "\(activeName)'s turn"
-        }
-    }
-
-    private var scoreTitle: String {
-        store.gamePhase == .finished ? "Winning Score:" : "Current Score:"
-    }
-
-    private var accessibilityTitleLabel: String {
-        switch store.gamePhase {
-        case .finished:
-            return "Game complete. Winner is \(leaderName) with \(AppTheme.spokenScore(leaderScore))."
-        case .finalRound:
-            return "\(activeName)'s turn. Final round in progress. Current score \(AppTheme.spokenScore(activeScore))."
-        case .regular:
-            return "\(activeName)'s turn. Current score \(AppTheme.spokenScore(activeScore))."
         }
     }
 
@@ -361,6 +279,104 @@ struct MainPanelView: View {
 #if canImport(UIKit)
         UIAccessibility.post(notification: .announcement, argument: message)
 #endif
+    }
+}
+
+/// The "<name>'s turn" title with avatar and current score. Inline in the main panel header
+/// on iPad/Mac; the sticky scroll header on iPhone.
+struct TurnTitleView: View {
+    /// True when the title is the full row (stacked/phone layouts); false beside header actions.
+    var fillsWidth: Bool = true
+
+    @Environment(GameStore.self) private var store
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ScaledMetric(relativeTo: .title) private var turnHeaderAvatarSize: CGFloat = 48
+
+    private var activeName: String {
+        store.activePlayer?.name ?? "—"
+    }
+
+    private var activeScore: Int {
+        store.activePlayer?.score ?? 0
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            activePlayerAvatar
+
+            VStack(spacing: 8) {
+                Text(turnTitle)
+                    .font(.system(.title, design: .rounded).bold())
+                    .foregroundStyle(AppTheme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityHidden(true)
+
+                HStack(spacing: 4) {
+                    Text(scoreTitle)
+                        .foregroundStyle(AppTheme.muted(contrast))
+                    Text(AppTheme.formatScore(activeScore))
+                        .fontWeight(.bold)
+                        .foregroundStyle(AppTheme.accentBlue(contrast))
+                        .contentTransition(reduceMotion ? .identity : .numericText())
+                        .animation(reduceMotion ? nil : .snappy, value: activeScore)
+                }
+                .font(.title3)
+                .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .center)
+        .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityTitleLabel)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private var activePlayerAvatar: some View {
+        if store.gamePhase != .finished, let player = store.activePlayer {
+            PlayerAvatarView(
+                player: player,
+                allPlayers: store.players,
+                listIndex: store.activePlayerIndex,
+                size: turnHeaderAvatarSize
+            )
+            .overlay {
+                Circle()
+                    .stroke(AppTheme.accentYellow(contrast), lineWidth: 3)
+                    .frame(width: turnHeaderAvatarSize + 4, height: turnHeaderAvatarSize + 4)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    private var turnTitle: String {
+        switch store.gamePhase {
+        case .finished:
+            return "Game complete"
+        case .finalRound, .regular:
+            return "\(activeName)'s turn"
+        }
+    }
+
+    private var scoreTitle: String {
+        store.gamePhase == .finished ? "Winning Score:" : "Current Score:"
+    }
+
+    private var accessibilityTitleLabel: String {
+        let leaderName = store.winner?.name ?? "—"
+        let leaderScore = store.winner?.score ?? 0
+        switch store.gamePhase {
+        case .finished:
+            return "Game complete. Winner is \(leaderName) with \(AppTheme.spokenScore(leaderScore))."
+        case .finalRound:
+            return "\(activeName)'s turn. Final round in progress. Current score \(AppTheme.spokenScore(activeScore))."
+        case .regular:
+            return "\(activeName)'s turn. Current score \(AppTheme.spokenScore(activeScore))."
+        }
     }
 }
 

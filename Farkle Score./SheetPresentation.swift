@@ -55,11 +55,11 @@ extension View {
 #endif
     }
 
-    /// Paints `AppTheme.background` under the status bar and home indicator while keeping
+    /// Paints the screen background under the status bar and home indicator while keeping
     /// this view's layout inside the safe area.
-    func farkleScreenBackground() -> some View {
+    func farkleScreenBackground(_ color: Color = AppTheme.background) -> some View {
         background {
-            AppTheme.background
+            color
                 .ignoresSafeArea()
         }
     }
@@ -84,13 +84,17 @@ extension View {
 
     /// Adds top/bottom fades over iOS safe-area edges for vertically scrollable content.
     @ViewBuilder
-    func farkleVerticalSafeAreaFade(topExtra: CGFloat = 16, bottomExtra: CGFloat = 16) -> some View {
+    func farkleVerticalSafeAreaFade(
+        topExtra: CGFloat = 16,
+        bottomExtra: CGFloat = 16,
+        color: Color = AppTheme.background
+    ) -> some View {
 #if os(iOS)
         overlay {
             GeometryReader { proxy in
                 VStack(spacing: 0) {
                     LinearGradient(
-                        colors: [AppTheme.background, AppTheme.background.opacity(0)],
+                        colors: [color, color.opacity(0)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -99,7 +103,7 @@ extension View {
                     Spacer(minLength: 0)
 
                     LinearGradient(
-                        colors: [AppTheme.background.opacity(0), AppTheme.background],
+                        colors: [color.opacity(0), color],
                         startPoint: .top,
                         endPoint: .bottom
                     )

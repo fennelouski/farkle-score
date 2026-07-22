@@ -5,10 +5,25 @@
 
 import SwiftUI
 
+extension GameStore {
+    /// Screen background nudged toward the active player's accent color.
+    func tintedScreenBackground(contrast: ColorSchemeContrast) -> Color {
+        guard let player = activePlayer, gamePhase != .finished else {
+            return AppTheme.background
+        }
+        let colorIndex = player.effectiveAvatarColorIndex(listIndex: activePlayerIndex)
+        return AppTheme.background(
+            tintedToward: AppTheme.avatarColor(index: colorIndex, contrast: contrast)
+        )
+    }
+}
+
 struct GameRootView: View {
+    @Environment(GameStore.self) private var store
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var useCompact: Bool {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
@@ -38,7 +53,11 @@ struct GameRootView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)
         .farkleRespectSafeAreaForContent()
-        .farkleScreenBackground()
+        .background {
+            store.tintedScreenBackground(contrast: contrast)
+                .ignoresSafeArea()
+                .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+        }
     }
 
     private var regularLayout: some View {
@@ -66,24 +85,11 @@ struct GameRootView: View {
     }
 
     private var phoneTabLayout: some View {
-        TabView {
-            PhoneScoreTabView()
-                .farkleRespectSafeAreaTop()
-                .safeAreaPadding(.horizontal, 12)
-                .tabItem {
-                    Label("Score", systemImage: "sum")
-                }
-                .accessibilityIdentifier("farkle.tab.score")
-
-            PlayerListView()
-                .farkleRespectSafeAreaTop()
-                .tabItem {
-                    Label("Players", systemImage: "person.2")
-                }
-                .accessibilityIdentifier("farkle.tab.players")
-        }
+        PhoneScoreTabView()
+            .farkleRespectSafeAreaTop()
+            .safeAreaPadding(.horizontal, 12)
 #if os(iOS)
-        .statusBarHidden(true)
+            .statusBarHidden(true)
 #endif
     }
 }

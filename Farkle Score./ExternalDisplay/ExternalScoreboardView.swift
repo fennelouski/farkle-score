@@ -174,7 +174,9 @@ struct ScoreboardMetrics {
     let size: CGSize
 
     var scale: CGFloat {
-        let reference = min(size.width / 1600, size.height / 900)
+        // 0.93 leaves breathing room on exact-16:9 screens, where a six-player board
+        // otherwise fills ~98% of the height and any TV cropping cuts the edges.
+        let reference = min(size.width / 1600, size.height / 900) * 0.93
         return min(max(reference, 0.32), 3.0)
     }
 
@@ -204,10 +206,15 @@ private struct ScoreboardHeader: View {
                 Text("Farkle Score")
                     .font(.system(size: m.fs(44), weight: .heavy, design: .rounded))
                     .foregroundStyle(AppTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Text("First to \(AppTheme.formatScore(GameStore.targetScore)) wins")
                     .font(.system(size: m.fs(22), weight: .semibold, design: .rounded))
                     .foregroundStyle(AppTheme.muted(contrast))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
             }
+            .layoutPriority(1)
             Spacer(minLength: m.fs(16))
             statusPill
             LiveIndicator(metrics: m)
@@ -233,6 +240,7 @@ private struct ScoreboardHeader: View {
             .font(.system(size: m.fs(26), weight: .bold, design: .rounded))
             .foregroundStyle(tint)
             .lineLimit(1)
+            .minimumScaleFactor(0.6)
             .padding(.horizontal, m.fs(24))
             .padding(.vertical, m.fs(12))
             .background(

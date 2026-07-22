@@ -124,8 +124,13 @@ struct ScoreInputView: View {
             }
             .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
 
-            if !store.history.isEmpty, let onShowHistory {
-                ShowHistoryButton(action: onShowHistory)
+            HStack(spacing: 12) {
+                ClearInputButton {
+                    store.clearTurnInput()
+                }
+                if !store.history.isEmpty, let onShowHistory {
+                    ShowHistoryButton(action: onShowHistory)
+                }
             }
         }
         .padding(16)
@@ -144,10 +149,6 @@ struct ScoreInputView: View {
                 canAppend: { store.canAppendTurnEntry(preset: $0, profile: scoringProfile) }
             ) { preset in
                 store.appendTurnEntry(preset: preset, profile: scoringProfile)
-            }
-
-            ClearInputButton {
-                store.clearTurnInput()
             }
         }
     }

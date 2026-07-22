@@ -68,6 +68,12 @@ final class Farkle_Score_UITests: XCTestCase {
             "Keypad 00 key must use a stable a11y id and expose the 'Double zero' label"
         )
         XCTAssertTrue(
+            hasLabeledElement("Undo last entry"),
+            "Undo control must expose the 'Undo last entry' accessibility label"
+        )
+
+        UITestNavigation.openPlayersTabIfPresent(app)
+        XCTAssertTrue(
             hasLabeledElement("New game"),
             "New-game control must expose the 'New game' accessibility label"
         )
@@ -75,12 +81,6 @@ final class Farkle_Score_UITests: XCTestCase {
             hasLabeledElement("Add player"),
             "Add-player control must expose the 'Add player' accessibility label"
         )
-        XCTAssertTrue(
-            hasLabeledElement("Undo last entry"),
-            "Undo control must expose the 'Undo last entry' accessibility label"
-        )
-
-        UITestNavigation.openPlayersTabIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Players, 6 maximum"),
             "Players section header must expose its expanded accessibility label"

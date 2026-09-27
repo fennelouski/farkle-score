@@ -45,6 +45,7 @@ struct HistoryContentView: View {
     let onSelectEntry: (ScoreEntry) -> Void
 
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.farkleLayoutStyle) private var layoutStyle
 
     private var matrix: HistoryRoundMatrix {
         HistoryRoundMatrix.build(players: players, history: history)
@@ -122,7 +123,13 @@ struct HistoryContentView: View {
                 breakdownContent
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // iPhone: hug a short history rather than drawing a bordered box around half a
+        // screen of nothing. List/breakdown are ScrollViews and stay greedy on their own.
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: layoutStyle == .phoneTabs ? nil : .infinity,
+            alignment: .topLeading
+        )
     }
 
     private var tableContent: some View {

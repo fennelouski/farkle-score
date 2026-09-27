@@ -66,6 +66,7 @@ struct AddToScoreButton: View {
         .accessibilityLabel(accessibilityTitle)
         .accessibilityHint("Adds the entered amount to the active player's score")
         .accessibilityIdentifier("farkle.addToScore")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -96,6 +97,7 @@ struct ClearInputButton: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Clear")
         .accessibilityHint("Clears the current turn score, singles, and combinations")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -127,6 +129,54 @@ struct ShowHistoryButton: View {
         .accessibilityLabel("History")
         .accessibilityHint("Opens score history")
         .accessibilityIdentifier("farkle.showHistory")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Bordered icon button sized for the compact iPhone header row: a 38pt chip inside a
+/// 44pt tap target.
+struct FarkleIconButton: View {
+    let systemImage: String
+    let label: String
+    var hint: String = ""
+    var identifier: String = ""
+    var tint: Color
+
+    var action: () -> Void
+
+    @Environment(\.colorSchemeContrast) private var contrast
+    @ScaledMetric(relativeTo: .body) private var chipSize: CGFloat = 38
+    @ScaledMetric(relativeTo: .body) private var tapSize: CGFloat = 44
+
+    // Capped: these share their row with the turn title, and at accessibility type sizes
+    // an unclamped @ScaledMetric grows them past 100pt and truncates the title away.
+    private var clampedChipSize: CGFloat { min(chipSize, 48) }
+    private var clampedTapSize: CGFloat { min(tapSize, 56) }
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(.body, design: .rounded).weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: clampedChipSize, height: clampedChipSize)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                        .fill(AppTheme.cardFill.opacity(0.7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                                .stroke(AppTheme.stroke(contrast), lineWidth: 1)
+                        )
+                )
+                .frame(width: clampedTapSize, height: clampedTapSize)
+                .farkleButtonHitArea()
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityHint(hint)
+        .accessibilityIdentifier(identifier)
+        .accessibilityAddTraits(.isButton)
     }
 }
 

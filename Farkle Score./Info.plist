@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>FarklePrivacyPolicyURL</key>
-	<string>https://nathanfennel.com/farkle-score/privacy</string>
+	<string>https://nathanfennel.com/farkle-score/privacy.html</string>
 	<key>FarkleSupportURL</key>
 	<string>https://nathanfennel.com/farkle-score/support</string>
 	<key>NSCameraUsageDescription</key>

@@ -120,6 +120,7 @@ struct HistoryEntryActionDialog: View {
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(accessibilityHint)
         .accessibilityIdentifier(identifier)
+        .accessibilityAddTraits(.isButton)
     }
 }
 

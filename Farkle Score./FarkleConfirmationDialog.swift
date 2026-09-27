@@ -81,6 +81,7 @@ struct FarkleConfirmationDialogOverlay: View {
         .accessibilityLabel(cancelTitle)
         .accessibilityHint("Dismisses without making changes")
         .accessibilityIdentifier("farkle.confirmation.cancel")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var confirmButton: some View {
@@ -106,6 +107,7 @@ struct FarkleConfirmationDialogOverlay: View {
         .accessibilityLabel("Confirm new game")
         .accessibilityHint("Resets all scores to zero and clears score history")
         .accessibilityIdentifier("farkle.confirmation.confirm")
+        .accessibilityAddTraits(.isButton)
     }
 }
 

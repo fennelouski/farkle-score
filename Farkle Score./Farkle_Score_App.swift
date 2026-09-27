@@ -37,6 +37,9 @@ struct Farkle_Score_App: App {
             if let mtime = GameStorePersistence.default.sessionFileModificationDate() {
                 AppSettings.lastLocalPersistenceWrite = mtime
             }
+            store.onHistoryEntryDeleted = { CloudSyncController.deletions.deleteHistory($0) }
+            profiles.onProfileDeleted = { CloudSyncController.deletions.deleteProfile($0) }
+            CloudSyncController.applyLocalDeletions(store: store, profileStore: profiles)
             var players = store.players
             let reconcile = ProfileMaintenance.reconcile(
                 players: &players,
@@ -51,7 +54,8 @@ struct Farkle_Score_App: App {
             if GameRosterProfileSync.sync(
                 players: &players,
                 profileStore: profiles,
-                defaultRosterExemptions: store.defaultRosterExemptions
+                defaultRosterExemptions: store.defaultRosterExemptions,
+                deletedProfileIDs: CloudSyncController.deletions.deletedProfileIDs
             ) {
                 store.players = players
                 rosterChanged = true
@@ -60,6 +64,7 @@ struct Farkle_Score_App: App {
                 try? persistence.save(store.snapshot)
             }
             for removedId in reconcile.removedProfileIds {
+                CloudSyncController.deletions.deleteProfile(removedId)
                 Task { await CloudSyncController.deleteProfileFromCloud(id: removedId) }
             }
         }

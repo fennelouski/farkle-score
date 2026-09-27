@@ -15,10 +15,14 @@ enum GameRosterProfileSync {
         players: inout [Player],
         profileStore: PlayerProfileStore,
         defaultRosterExemptions: [UUID: String] = [:],
-        persist: Bool = true
+        persist: Bool = true,
+        deletedProfileIDs: Set<UUID>? = nil
     ) -> Bool {
+        let deletedProfileIDs = deletedProfileIDs ?? CloudSyncController.deletions.deletedProfileIDs
         var rosterChanged = false
         for index in players.indices {
+            // Keep the game player, but do not recreate a deleted library profile.
+            if let id = players[index].profileId, deletedProfileIDs.contains(id) { continue }
             if syncOne(
                 player: &players[index],
                 listIndex: index,

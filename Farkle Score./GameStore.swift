@@ -8,6 +8,8 @@ import Observation
 
 @Observable
 final class GameStore {
+    @ObservationIgnored var onHistoryEntryDeleted: ((UUID) -> Void)?
+
     private static let maxInputDigits = 9
     private static let minPlayers = 1
     private static let maxPlayers = 6
@@ -91,12 +93,16 @@ final class GameStore {
             Player(name: "Eli", score: 3800, avatarEmoji: "🍀", avatarColorIndex: 4),
             Player(name: "Faye", score: 5150, avatarEmoji: "⭐", avatarColorIndex: 7),
         ]
-        // Roster-order entries so HistoryRoundMatrix groups them into rounds 1–3;
-        // zero amounts render as farkled turns.
+        // Roster-order entries so HistoryRoundMatrix groups them into rounds 1–6;
+        // zero amounts render as farkled turns. Each column sums to that player's score
+        // above, so the history and the scoreboard reconcile.
         let roundAmounts: [[Int]] = [
             [500, 300, 0, 450, 150, 600],
             [1000, 0, 400, 750, 300, 0],
             [250, 550, 150, 900, 100, 350],
+            [2000, 1000, 500, 1200, 950, 1500],
+            [3000, 1500, 250, 2000, 1300, 1200],
+            [1950, 850, 800, 1050, 1000, 1500],
         ]
         let start = Date(timeIntervalSinceReferenceDate: 700_000_000)
         var history: [ScoreEntry] = []
@@ -414,7 +420,12 @@ final class GameStore {
     }
 
     func undoLastEntry() {
-        guard let last = history.popLast() else { return }
+        guard let index = history.indices.max(by: { left, right in
+            if history[left].timestamp == history[right].timestamp { return left < right }
+            return history[left].timestamp < history[right].timestamp
+        }) else { return }
+        let last = history.remove(at: index)
+        onHistoryEntryDeleted?(last.id)
         guard let idx = players.firstIndex(where: { $0.id == last.playerId }) else { return }
         players[idx].score -= last.amount
         resetGameProgressAfterScoreMutation()
@@ -424,6 +435,7 @@ final class GameStore {
     func deleteHistoryEntry(id: UUID) {
         guard let index = history.firstIndex(where: { $0.id == id }) else { return }
         let entry = history.remove(at: index)
+        onHistoryEntryDeleted?(entry.id)
         guard let idx = players.firstIndex(where: { $0.id == entry.playerId }) else { return }
         players[idx].score -= entry.amount
         resetGameProgressAfterScoreMutation()
@@ -437,6 +449,7 @@ final class GameStore {
         guard let playerIdx = players.firstIndex(where: { $0.id == entry.playerId }) else { return false }
         players[playerIdx].score -= entry.amount
         history.remove(at: index)
+        onHistoryEntryDeleted?(entry.id)
         activePlayerIndex = playerIdx
         if let breakdown = entry.breakdown, !breakdown.isEmpty {
             turnEntries = breakdown

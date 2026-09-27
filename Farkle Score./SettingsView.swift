@@ -254,6 +254,13 @@ struct SettingsView: View {
                 )
                 .font(.footnote)
                 .foregroundStyle(AppTheme.muted(contrast))
+                if CloudSyncController.deletions.pendingCount > 0 {
+                    Text("Deleted items are hidden on this device. Their iCloud removal is waiting for a connection or a successful retry.")
+                        .font(.footnote)
+                    Button("Retry iCloud Deletions") {
+                        Task { await CloudSyncController.retryPendingDeletions() }
+                    }
+                }
             } header: {
                 Text("iCloud")
             }

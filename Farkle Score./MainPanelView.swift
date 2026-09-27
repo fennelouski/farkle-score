@@ -19,6 +19,7 @@ struct MainPanelView: View {
     @Environment(\.farkleLayoutStyle) private var layoutStyle
     @State private var showFullHistory = false
     @State private var showNewGameConfirmation = false
+    @State private var showRulesLibrary = false
     @State private var selectedHistoryEntry: ScoreEntry?
     @AppStorage(AppSettings.historyShowTimesStorageKey) private var historyShowTimes = true
     @AppStorage(AppSettings.historyDisplayModeStorageKey) private var historyDisplayModeRaw = HistoryDisplayMode.table.rawValue
@@ -63,6 +64,10 @@ struct MainPanelView: View {
         .sheet(isPresented: $showFullHistory) {
             historySheet
         }
+        .sheet(isPresented: $showRulesLibrary) {
+            RulesLibraryView()
+                .farkleRulesSheet()
+        }
         .farkleConfirmationDialog(
             isPresented: $showNewGameConfirmation,
             title: "Start new game?",
@@ -92,7 +97,7 @@ struct MainPanelView: View {
     }
 
     private var mainColumn: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: layoutStyle == .phoneTabs ? 8 : 16) {
             header
             if store.gamePhase != .regular {
                 gamePhaseBanner
@@ -105,8 +110,12 @@ struct MainPanelView: View {
     private var header: some View {
         Group {
             if layoutStyle == .phoneTabs {
-                // The turn title lives in the sticky scroll header on iPhone.
-                headerActions
+                // One compact row: whose turn it is, plus the entry-fixing actions.
+                HStack(spacing: 4) {
+                    TurnTitleView(fillsWidth: false, compact: true)
+                    Spacer(minLength: 4)
+                    phoneHeaderActions
+                }
             } else if stackVertically {
                 VStack(alignment: .leading, spacing: 12) {
                     TurnTitleView(fillsWidth: true)
@@ -144,6 +153,68 @@ struct MainPanelView: View {
                         .stroke(AppTheme.stroke(contrast))
                 )
         )
+    }
+
+    /// iPhone: icon-only actions so the turn title and the fix-a-mistake controls share one row.
+    private var phoneHeaderActions: some View {
+        HStack(spacing: 0) {
+            FarkleIconButton(
+                systemImage: "book.closed",
+                label: "Rule references",
+                hint: "Opens the bundled scoring rules",
+                identifier: "farkle.rules.open",
+                tint: AppTheme.accentYellow(contrast)
+            ) {
+                showRulesLibrary = true
+            }
+
+            if store.canUndoNewGame {
+                UndoNewGameButton {
+                    withAnimation(reduceMotion ? nil : .default) {
+                        store.undoNewGame()
+                    }
+                    announce("Restored previous game")
+                }
+                .padding(.trailing, 4)
+            }
+
+            FarkleIconButton(
+                systemImage: "arrow.uturn.backward",
+                label: "Undo last entry",
+                hint: "Removes the most recent score entry",
+                tint: AppTheme.accentBlue(contrast)
+            ) {
+                withAnimation(reduceMotion ? nil : .default) {
+                    store.undoLastEntry()
+                }
+                announce("Undid last score entry")
+            }
+            .disabled(store.history.isEmpty)
+            .opacity(store.history.isEmpty ? 0.35 : 1)
+
+            FarkleIconButton(
+                systemImage: "clock.arrow.circlepath",
+                label: "History",
+                hint: "Opens score history",
+                identifier: "farkle.showHistory",
+                tint: AppTheme.primaryText
+            ) {
+                showFullHistory = true
+            }
+            .disabled(store.history.isEmpty)
+            .opacity(store.history.isEmpty ? 0.35 : 1)
+
+            if store.isGameInProgress || store.gamePhase == .finished {
+                FarkleIconButton(
+                    systemImage: "arrow.clockwise.circle",
+                    label: "New game",
+                    hint: "Opens a confirmation before resetting scores and clearing history",
+                    tint: AppTheme.accentYellow(contrast)
+                ) {
+                    showNewGameConfirmation = true
+                }
+            }
+        }
     }
 
     private var headerActions: some View {
@@ -191,6 +262,7 @@ struct MainPanelView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Undo last entry")
         .accessibilityHint("Removes the most recent score entry")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var historyDisplayModeBinding: Binding<HistoryDisplayMode> {
@@ -223,7 +295,11 @@ struct MainPanelView: View {
                     .padding()
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: layoutStyle == .phoneTabs ? .top : .center
+            )
             .navigationTitle("History")
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -287,6 +363,9 @@ struct MainPanelView: View {
 struct TurnTitleView: View {
     /// True when the title is the full row (stacked/phone layouts); false beside header actions.
     var fillsWidth: Bool = true
+    /// iPhone: a single bold line. The avatar and running score are already in the
+    /// scoreboard strip and the add-score button, so repeating them just costs height.
+    var compact: Bool = false
 
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
@@ -302,6 +381,30 @@ struct TurnTitleView: View {
     }
 
     var body: some View {
+        Group {
+            if compact {
+                compactTitle
+            } else {
+                fullTitle
+            }
+        }
+        .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityTitleLabel)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var compactTitle: some View {
+        Text(turnTitle)
+            .font(.system(.title2, design: .rounded).bold())
+            .foregroundStyle(AppTheme.primaryText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
+            .accessibilityHidden(true)
+    }
+
+    private var fullTitle: some View {
         HStack(alignment: .center, spacing: 12) {
             activePlayerAvatar
 
@@ -329,10 +432,6 @@ struct TurnTitleView: View {
             }
         }
         .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .center)
-        .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityTitleLabel)
-        .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder

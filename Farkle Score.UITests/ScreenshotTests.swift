@@ -181,8 +181,13 @@ final class ScreenshotTests: XCTestCase {
             done.tap()
         }
         UITestNavigation.openPlayersTabIfPresent(app)
-        let ruleReferences = app.buttons["Rule references"].firstMatch
-        XCTAssertTrue(ruleReferences.waitForExistence(timeout: 8))
+        // Two controls carry this label on iPhone (the score header and the players sheet
+        // header), so pick whichever is actually on top — .firstMatch can land on the one
+        // behind the sheet and tap straight through to nothing.
+        let ruleCandidates = app.buttons.matching(NSPredicate(format: "label == %@", "Rule references"))
+        XCTAssertTrue(ruleCandidates.firstMatch.waitForExistence(timeout: 8))
+        let ruleReferences = ruleCandidates.allElementsBoundByIndex.first { $0.isHittable }
+            ?? ruleCandidates.firstMatch
         ruleReferences.tap()
 
         XCTAssertTrue(

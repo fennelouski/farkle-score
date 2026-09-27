@@ -72,7 +72,13 @@ struct PlayerListView: View {
             }
         }
         .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // iPhone presents this in a sheet that sizes to the content, so it must not be
+        // greedy vertically or there is nothing to measure.
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: layoutStyle == .phoneTabs ? nil : .infinity,
+            alignment: .topLeading
+        )
         .sheet(item: $editorMode) { mode in
             PlayerEditorSheet(mode: mode) {
                 editorMode = nil
@@ -128,10 +134,13 @@ struct PlayerListView: View {
 
             playersList
 
-            if !needsVerticalScroll {
-                Spacer(minLength: 12)
-            } else {
+            // iPhone shows this in a content-sized sheet: a greedy Spacer would both
+            // bottom-anchor the pre-game setup below a screenful of nothing and stretch
+            // the measured content height to the full screen.
+            if needsVerticalScroll || layoutStyle == .phoneTabs {
                 Color.clear.frame(height: 8)
+            } else {
+                Spacer(minLength: 12)
             }
 
             if showAutoAdvanceTurnOption {
@@ -190,6 +199,24 @@ struct PlayerListView: View {
 
     @ViewBuilder
     private var inGamePlayersList: some View {
+        if layoutStyle == .phoneTabs {
+            // A plain stack, not a List: with at most six rows the List's scrolling buys
+            // nothing and its greedy height is what leaves the sheet half empty.
+            VStack(spacing: PlayerRowLayoutMetrics.rowSpacing) {
+                ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
+                    // Rows carry maxHeight: .infinity for List; pin them to their natural
+                    // height here or they stretch to fill the sheet.
+                    playerRow(index: index, player: player)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else {
+            sidebarInGamePlayersList
+        }
+    }
+
+    @ViewBuilder
+    private var sidebarInGamePlayersList: some View {
         let list = List {
             ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
                 playerRow(index: index, player: player)
@@ -259,6 +286,12 @@ struct PlayerListView: View {
                     .font(.system(.title3, design: .rounded).bold())
                     .foregroundStyle(AppTheme.accentYellow(contrast))
             }
+            // Scoped to the wordmark: on the whole row this swallowed the three
+            // buttons beside it, hiding saved players / rules / settings from VoiceOver.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Farkle Score Keeper")
+            .accessibilityAddTraits(.isHeader)
+
             Spacer(minLength: 8)
             HStack(spacing: 0) {
                 Button {
@@ -298,9 +331,6 @@ struct PlayerListView: View {
                 .accessibilityLabel("Settings")
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Farkle Score Keeper")
-        .accessibilityAddTraits(.isHeader)
     }
 
     private var pickSavedPlayersButton: some View {
@@ -344,6 +374,7 @@ struct PlayerListView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Set up players")
         .accessibilityHint("Pick saved players or enter new names for this game")
+        .accessibilityAddTraits(.isButton)
     }
 
     private func openQuickSetup() {
@@ -386,6 +417,7 @@ struct PlayerListView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Add player")
         .accessibilityHint(store.canAddPlayer ? "Opens a form to add a new player" : "Maximum number of players reached")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var newGameButton: some View {
@@ -420,6 +452,7 @@ struct PlayerListView: View {
         .accessibilityHint(gameFinished
             ? "Game is complete. Starts a fresh game with the same players."
             : "Opens a confirmation before resetting scores and clearing history")
+        .accessibilityAddTraits(.isButton)
     }
 }
 

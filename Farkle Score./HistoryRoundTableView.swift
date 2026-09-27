@@ -18,6 +18,30 @@ struct HistoryRoundTableView: View {
     @ScaledMetric private var cellPadding: CGFloat = 10
 
     var body: some View {
+        // Only scrolls vertically once the rounds outgrow the space — a long game used to
+        // clip its late rounds with no way to reach them, but a permanently scrollable
+        // table is greedy and leaves the card drawing a border around empty space.
+        ViewThatFits(in: .vertical) {
+            roundGrid
+            ScrollView(.vertical, showsIndicators: true) { roundGrid }
+        }
+        // More players than fit the width is normal on iPhone; fade the trailing edge so
+        // the overflow reads as "scroll for more" instead of a column sliced in half.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: 0.93),
+                    .init(color: .black.opacity(0), location: 1),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .accessibilityElement(children: .contain)
+    }
+
+    private var roundGrid: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 0) {
                 GridRow {
@@ -49,7 +73,6 @@ struct HistoryRoundTableView: View {
                 }
             }
         }
-        .accessibilityElement(children: .contain)
     }
 
     private var roundHeaderCell: some View {

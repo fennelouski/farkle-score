@@ -39,16 +39,18 @@ struct PlayerNameStandingBadgeView: View {
                 Text(name)
                     .font(font)
             } else {
-                ZStack(alignment: .topLeading) {
-                    Text(parts.first)
-                        .font(font)
-                    if effectiveRank == 1 {
-                        Text("👑")
-                            .font(.system(size: badgeSize))
-                            .offset(x: crownOffsetX, y: crownOffsetY)
-                            .accessibilityHidden(true)
+                // Overlay, not a ZStack sibling: at small name fonts the emoji is wider
+                // than the first letter and a ZStack would push the rest of the name over.
+                Text(parts.first)
+                    .font(font)
+                    .overlay(alignment: .topLeading) {
+                        if effectiveRank == 1 {
+                            Text("👑")
+                                .font(.system(size: badgeSize))
+                                .offset(x: crownOffsetX, y: crownOffsetY)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
                 if !parts.rest.isEmpty {
                     Text(parts.rest)
                         .font(font)

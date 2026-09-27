@@ -206,24 +206,47 @@ actor CloudKitSyncService: CloudSyncing {
             database: db
         )
         Self.populate(record: record, from: profile)
+        var temporaryPhotoURL: URL?
+        defer {
+            if let temporaryPhotoURL {
+                try? FileManager.default.removeItem(at: temporaryPhotoURL)
+            }
+        }
         if let fileName = profile.avatarPhotoFileName,
            let data = try AvatarImageStore.data(for: fileName) {
             let tempURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + ".jpg")
+            temporaryPhotoURL = tempURL
             try data.write(to: tempURL, options: [.atomic])
             record[CloudKitSchema.savedProfilePhotoKey] = CKAsset(fileURL: tempURL)
-            try? FileManager.default.removeItem(at: tempURL)
         } else {
             record[CloudKitSchema.savedProfilePhotoKey] = nil
         }
-        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: false)
+        let result = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: false)
+        guard let outcome = result.saveResults[recordID] else { throw CKError(.internalError) }
+        _ = try outcome.get()
     }
 
     func deleteSavedProfile(id: UUID) async throws {
         let db = container.privateCloudDatabase
         let zoneID = try await ensureZoneExists()
         let recordID = CKRecord.ID(recordName: id.uuidString, zoneID: zoneID)
-        _ = try await db.modifyRecords(saving: [], deleting: [recordID], savePolicy: .changedKeys, atomically: true)
+        try await deleteRecord(recordID, database: db)
+    }
+
+    func deleteHistoryEntry(id: UUID) async throws {
+        let zoneID = try await ensureZoneExists()
+        try await deleteRecord(CKRecord.ID(recordName: id.uuidString, zoneID: zoneID), database: container.privateCloudDatabase)
+    }
+
+    private func deleteRecord(_ id: CKRecord.ID, database: CKDatabase) async throws {
+        do {
+            let result = try await database.modifyRecords(saving: [], deleting: [id], savePolicy: .changedKeys, atomically: false)
+            guard let outcome = result.deleteResults[id] else { throw CKError(.internalError) }
+            try outcome.get()
+        } catch let error as CKError where error.code == .unknownItem {
+            // A retry after an already completed delete is successful.
+        }
     }
 
     // MARK: - Private

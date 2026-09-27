@@ -45,6 +45,7 @@ struct UnusualTurnScoreDialog: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Add \(AppTheme.spokenScore(amount)) anyway")
                 .accessibilityHint("Adds this score without changing the entry")
+        .accessibilityAddTraits(.isButton)
 
                 Button(action: onFixEntry) {
                     Text("Fix Entry")
@@ -68,6 +69,7 @@ struct UnusualTurnScoreDialog: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Fix entry")
                 .accessibilityHint("Closes this dialog so you can change the turn score")
+        .accessibilityAddTraits(.isButton)
             }
         }
         .padding(20)

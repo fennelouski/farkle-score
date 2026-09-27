@@ -6,33 +6,19 @@
 import SwiftUI
 
 struct PhoneScoreTabView: View {
-    @Environment(GameStore.self) private var store
-    @Environment(\.colorSchemeContrast) private var contrast
     @State private var showPlayers = false
 
-    private var screenBackground: Color {
-        store.tintedScreenBackground(contrast: contrast)
-    }
-
     var body: some View {
-        // Scrolls so large Dynamic Type never pushes the avatar strip under the status
-        // bar or the add-score button off screen. The turn title pins while scrolling.
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
-                PlayerAvatarStripView(onManagePlayers: { showPlayers = true })
-                Section {
-                    MainPanelView()
-                } header: {
-                    TurnTitleView(fillsWidth: true)
-                        .padding(.vertical, 6)
-                        .background(screenBackground)
-                }
-            }
+        // Fixed layout: the scoreboard, the turn header and the add-score button never
+        // move. Only the keypad / common-scores panel scrolls, so large Dynamic Type
+        // shrinks that panel instead of pushing the primary action off screen.
+        VStack(spacing: 10) {
+            PlayerAvatarStripView(onManagePlayers: { showPlayers = true })
+            MainPanelView()
         }
-        .farkleVerticalSafeAreaFade(color: screenBackground)
         .sheet(isPresented: $showPlayers) {
             PlayerListView()
-                .farkleSheetChrome(detents: [.large])
+                .farkleFittedSheetChrome()
                 .farkleScreenBackground()
         }
     }
@@ -42,5 +28,6 @@ struct PhoneScoreTabView: View {
     PhoneScoreTabView()
         .environment(GameStore.preview)
         .environment(PlayerProfileStore())
+        .environment(\.farkleLayoutStyle, .phoneTabs)
         .background(AppTheme.background)
 }

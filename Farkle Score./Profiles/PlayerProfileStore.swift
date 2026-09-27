@@ -8,6 +8,8 @@ import Observation
 
 @Observable
 final class PlayerProfileStore {
+    @ObservationIgnored var onProfileDeleted: ((UUID) -> Void)?
+
     private(set) var profiles: [PlayerProfile] = []
     private let persistence: PlayerProfilePersistence
 
@@ -75,6 +77,7 @@ final class PlayerProfileStore {
     func delete(id: UUID, gamePlayers: [Player] = [], persist: Bool = true) {
         guard let idx = profiles.firstIndex(where: { $0.id == id }) else { return }
         let removed = profiles.remove(at: idx)
+        onProfileDeleted?(id)
         if persist { try? persistence.save(profiles) }
         AvatarImageStore.deleteFileIfUnreferenced(
             named: removed.avatarPhotoFileName,

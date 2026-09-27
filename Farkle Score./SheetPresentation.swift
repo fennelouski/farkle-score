@@ -20,7 +20,52 @@ enum FarkleLayoutMetrics {
     }
 }
 
+private struct FarkleSheetContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// A sheet that hugs its content instead of always filling the screen, so a six-player
+/// roster doesn't sit above a screenful of empty card. `.large` stays available so it can
+/// always be dragged up; content that is greedy (a ScrollView) measures full height and
+/// therefore lands on `.large` anyway.
+private struct FarkleFittedSheet: ViewModifier {
+    @State private var contentHeight: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: FarkleSheetContentHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
+            .onPreferenceChange(FarkleSheetContentHeightKey.self) { height in
+                // Only ever grow: a shrinking measurement is usually the sheet reacting to
+                // its own new detent, which would otherwise ratchet the sheet closed.
+                if height > contentHeight { contentHeight = height }
+            }
+            .presentationDetents(contentHeight > 0 ? [.height(contentHeight), .large] : [.large])
+            .presentationDragIndicator(.visible)
+    }
+}
+
 extension View {
+    /// iPhone: sizes the sheet to its content (see `FarkleFittedSheet`). No-op elsewhere.
+    @ViewBuilder
+    func farkleFittedSheetChrome() -> some View {
+#if os(iOS)
+        modifier(FarkleFittedSheet())
+#else
+        self
+#endif
+    }
+
     /// Shared sheet chrome for iPhone and iPad (detents + drag indicator for multitasking).
     @ViewBuilder
     func farkleSheetChrome(detents: [PresentationDetent] = [.medium, .large]) -> some View {

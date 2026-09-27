@@ -52,7 +52,7 @@ struct GameRootView: View {
         .padding(.top, layoutStyle == .phoneTabs ? 0 : FarkleLayoutMetrics.iPadTopContentInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minWidth: horizontalSizeClass == .regular ? 360 : 0)
-        .farkleRespectSafeAreaForContent()
+        .farkleRespectSafeAreaForContent(bottomExtra: layoutStyle == .phoneTabs ? 8 : 24)
         .background {
             store.tintedScreenBackground(contrast: contrast)
                 .ignoresSafeArea()
@@ -85,12 +85,10 @@ struct GameRootView: View {
     }
 
     private var phoneTabLayout: some View {
+        // Only the outer `farkleRespectSafeAreaForContent` inset here: doubling it up
+        // pushed the keypad 40pt in from each edge.
         PhoneScoreTabView()
-            .farkleRespectSafeAreaTop()
-            .safeAreaPadding(.horizontal, 12)
-#if os(iOS)
-            .statusBarHidden(true)
-#endif
+            .farkleRespectSafeAreaTop(4)
     }
 }
 

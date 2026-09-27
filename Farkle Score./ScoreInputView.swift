@@ -81,13 +81,7 @@ struct ScoreInputView: View {
     }
 
     private var phoneScoreInputContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Enter turn score")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.muted(contrast))
-                .accessibilityLabel("Enter turn score")
-                .accessibilityAddTraits(.isHeader)
-
+        VStack(alignment: .leading, spacing: 10) {
             inputDisplay
 
             TurnScoreBreakdownView(
@@ -102,16 +96,27 @@ struct ScoreInputView: View {
             .pickerStyle(.segmented)
             .accessibilityLabel("Score input mode")
 
-            Group {
-                if activeInputPanel == .keypad {
-                    KeypadView(
-                        onDigit: { store.appendDigit($0) },
-                        onDoubleZero: { store.appendDoubleZero() },
-                        onBackspace: { store.backspace() }
-                    )
-                } else {
-                    phoneCommonScoresPanel
+            // The panel absorbs whatever height is left, so the add-score button below
+            // stays put under the thumb no matter the Dynamic Type size: the keypad
+            // grows into the space, and only overflow (huge type) starts scrolling.
+            GeometryReader { proxy in
+                ScrollView {
+                    Group {
+                        if activeInputPanel == .keypad {
+                            KeypadView(
+                                onDigit: { store.appendDigit($0) },
+                                onDoubleZero: { store.appendDoubleZero() },
+                                onBackspace: { store.backspace() },
+                                fillsHeight: true
+                            )
+                        } else {
+                            phoneCommonScoresPanel
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minHeight: proxy.size.height, alignment: .top)
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
 
             AddToScoreButton(
@@ -123,25 +128,17 @@ struct ScoreInputView: View {
                 requestAddToScore()
             }
             .animation(reduceMotion ? nil : .snappy, value: store.activePlayerIndex)
-
-            HStack(spacing: 12) {
-                ClearInputButton {
-                    store.clearTurnInput()
-                }
-                if !store.history.isEmpty, let onShowHistory {
-                    ShowHistoryButton(action: onShowHistory)
-                }
-            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background { cardBackground() }
     }
 
     private var phoneCommonScoresPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            commonScoresHeader
-
+        // No caption and no rules button here: the segmented control above already says
+        // "Common scores", and rule references live in the header row alongside the other
+        // chrome, so the grid starts right under the picker.
+        VStack(alignment: .leading, spacing: 8) {
             CommonScoreGridView(
                 presets: scoringProfile.commonScorePresets(),
                 profile: scoringProfile,
@@ -208,6 +205,20 @@ struct ScoreInputView: View {
         return RulesLibrary.metadata(id: scoringPayload.templateRulesetId)?.localizedTitle ?? scoringPayload.templateRulesetId
     }
 
+    private var rulesLibraryButton: some View {
+        Button {
+            showRulesLibrary = true
+        } label: {
+            Image(systemName: "book.closed")
+                .font(.title3)
+                .foregroundStyle(AppTheme.accentYellow(contrast))
+                .padding(8)
+                .farkleButtonHitArea()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Rule references")
+    }
+
     private var commonScoresHeader: some View {
         HStack {
             Text("Common scores")
@@ -218,17 +229,7 @@ struct ScoreInputView: View {
 
             Spacer(minLength: 8)
 
-            Button {
-                showRulesLibrary = true
-            } label: {
-                Image(systemName: "book.closed")
-                    .font(.title3)
-                    .foregroundStyle(AppTheme.accentYellow(contrast))
-                    .padding(8)
-                    .farkleButtonHitArea()
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Rule references")
+            rulesLibraryButton
         }
     }
 
@@ -262,6 +263,31 @@ struct ScoreInputView: View {
         }
     }
 
+    private var hasTurnInput: Bool {
+        store.isTurnBuilderActive || store.resolvedTurnAmount != 0 || !store.currentInput.isEmpty
+    }
+
+    /// iPhone: clearing lives in the display it clears, calculator-style, instead of a
+    /// full-width button competing with "Add to score".
+    private var inlineClearButton: some View {
+        Button {
+            store.clearTurnInput()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.title2)
+                .foregroundStyle(AppTheme.muted(contrast))
+                .frame(width: 44, height: 44)
+                .farkleButtonHitArea()
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .opacity(hasTurnInput ? 1 : 0.3)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Clear")
+        .accessibilityHint("Clears the current turn score, singles, and combinations")
+        .accessibilityAddTraits(.isButton)
+    }
+
     private var inputDisplay: some View {
         HStack(alignment: .center, spacing: 6) {
             Text(turnDisplayText)
@@ -276,10 +302,16 @@ struct ScoreInputView: View {
                 .frame(width: 3, height: cursorHeight)
                 .opacity(store.isTurnBuilderActive ? 0 : 1)
                 .accessibilityHidden(true)
+
+            if layoutStyle == .phoneTabs {
+                Spacer(minLength: 8)
+                inlineClearButton
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.leading, 16)
+        .padding(.trailing, layoutStyle == .phoneTabs ? 6 : 16)
+        .padding(.vertical, layoutStyle == .phoneTabs ? 6 : 14)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                 .fill(AppTheme.displayInset)

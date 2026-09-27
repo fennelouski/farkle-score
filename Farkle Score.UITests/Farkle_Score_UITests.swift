@@ -54,11 +54,12 @@ final class Farkle_Score_UITests: XCTestCase {
             hasAccessibilityId("farkle.addToScore"),
             "Add-to-score control must expose the stable farkle.addToScore accessibility identifier"
         )
-        UITestNavigation.switchToCommonScoresIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Clear"),
             "Clear control must expose the 'Clear' accessibility label"
         )
+        // Assert the keypad before switching panels: on iPhone the keypad and the common
+        // scores grid are alternatives, so the ⌫/00 keys are gone once you switch.
         XCTAssertTrue(
             hasAccessibilityId("farkle.keypad.backspace") && hasLabeledElement("Backspace"),
             "Keypad ⌫ key must use a stable a11y id and expose the 'Backspace' label"
@@ -67,6 +68,7 @@ final class Farkle_Score_UITests: XCTestCase {
             hasAccessibilityId("farkle.keypad.doubleZero") && hasLabeledElement("Double zero"),
             "Keypad 00 key must use a stable a11y id and expose the 'Double zero' label"
         )
+        UITestNavigation.switchToCommonScoresIfPresent(app)
         XCTAssertTrue(
             hasLabeledElement("Undo last entry"),
             "Undo control must expose the 'Undo last entry' accessibility label"
@@ -108,7 +110,12 @@ final class Farkle_Score_UITests: XCTestCase {
 
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
 
+        // The form is lazy: on iPhone the App Store section is below the fold and is not
+        // instantiated until scrolled into view.
         let appStoreHeader = app.descendants(matching: .any)["farkle.settings.appStoreSectionHeader"]
+        for _ in 0 ..< 8 where !appStoreHeader.exists {
+            app.swipeUp(velocity: .fast)
+        }
         XCTAssertTrue(
             appStoreHeader.waitForExistence(timeout: 5),
             "Settings must include the App Store section for policy/support links"
@@ -123,20 +130,25 @@ final class Farkle_Score_UITests: XCTestCase {
 
         UITestNavigation.scrollToRevealScoreControlsIfNeeded(app)
 
+        // 500, not 5: a bare 5 is not representable under the scoring rules, so adding it
+        // raises the "unusual score" confirmation instead of scoring.
         let digitFive = app.buttons["farkle.keypad.digit.5"]
         XCTAssertTrue(digitFive.waitForExistence(timeout: 10), "Keypad digit 5 must be available")
         digitFive.tap()
+        app.buttons["farkle.keypad.doubleZero"].tap()
 
         let addToScore = app.buttons["farkle.addToScore"]
         XCTAssertTrue(addToScore.waitForExistence(timeout: 5))
         addToScore.tap()
 
+        // Match on the name, not "position 1": once a player leads, their row/chip label
+        // reads "<name>, 1st place, <score>" instead of the position wording.
         let scoredRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "position 1", "5 points"))
+            .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "Alice", "500 points"))
             .firstMatch
         XCTAssertTrue(
             scoredRow.waitForExistence(timeout: 5),
-            "First player row should show 5 points after scoring"
+            "First player row should show 500 points after scoring"
         )
 
         let newGame = app.buttons["New game"]
@@ -186,14 +198,13 @@ final class Farkle_Score_UITests: XCTestCase {
                 .exists,
             "Pre-game rows must not show zero-point scores"
         )
-        let reorderHandle = app.buttons["Reorder Alice"]
         XCTAssertTrue(
-            reorderHandle.waitForExistence(timeout: 5),
-            "Pre-game rows must expose reorder handles instead of scores"
+            app.textFields["Player 1"].waitForExistence(timeout: 5),
+            "Resetting the untouched default roster must return to player naming"
         )
         XCTAssertTrue(
-            app.buttons["Edit Alice"].waitForExistence(timeout: 3),
-            "Pre-game rows must expose edit pencils after new game reset"
+            app.buttons["Done naming players"].waitForExistence(timeout: 3),
+            "Player setup must remain available after new game reset"
         )
     }
 
@@ -204,6 +215,11 @@ final class Farkle_Score_UITests: XCTestCase {
 
         UITestNavigation.openPlayersTabIfPresent(app)
 
+        // NOTE: this currently fails on a clean install. An unchanged default roster renders
+        // InlineDefaultRosterSetupView instead of player rows, so there is no pencil to tap
+        // until a name is entered. Naming one here would fix it, but the roster persists
+        // across tests in the shared container and would break the ones that expect
+        // Alice/Bob/Chris — the suite needs a per-test state reset first.
         let editBobButton = app.buttons["Edit Bob"]
         XCTAssertTrue(
             editBobButton.waitForExistence(timeout: 8),

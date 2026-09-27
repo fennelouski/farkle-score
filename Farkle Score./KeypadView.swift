@@ -9,6 +9,9 @@ struct KeypadView: View {
     var onDigit: (String) -> Void
     var onDoubleZero: () -> Void
     var onBackspace: () -> Void
+    /// iPhone: keys grow to fill the space left between the display and the add button,
+    /// which makes for much bigger tap targets than a fixed-height grid.
+    var fillsHeight: Bool = false
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorSchemeContrast) private var contrast
@@ -35,6 +38,7 @@ struct KeypadView: View {
                         keyView(for: key)
                     }
                 }
+                .frame(maxHeight: fillsHeight ? .infinity : nil)
             }
         }
     }
@@ -86,7 +90,7 @@ struct KeypadView: View {
             Text(title)
                 .font(.system(.title2, design: .rounded).weight(.semibold))
                 .foregroundStyle(AppTheme.primaryText)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil)
                 .frame(minHeight: keyMinHeight)
                 .farkleButtonHitArea()
                 .background(

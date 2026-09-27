@@ -70,7 +70,9 @@ actor CloudKitSyncService: CloudSyncing {
         }
         let data = try rosterEncoder.encode(stripped)
         record[CloudKitSchema.playersJSONKey] = data as CKRecordValue
-        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        let result = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        guard let outcome = result.saveResults[recordID] else { throw CKError(.internalError) }
+        _ = try outcome.get()
     }
 
     func fetchHistoryEntries() async throws -> [ScoreEntry] {
@@ -106,7 +108,9 @@ actor CloudKitSyncService: CloudSyncing {
         let recordID = CKRecord.ID(recordName: entry.id.uuidString, zoneID: zoneID)
         let record = CKRecord(recordType: CloudKitSchema.historyRecordType, recordID: recordID)
         Self.populate(record: record, from: entry)
-        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: false)
+        let result = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .allKeys, atomically: false)
+        guard let outcome = result.saveResults[recordID] else { throw CKError(.internalError) }
+        _ = try outcome.get()
     }
 
     func fetchCurrentSession() async throws -> (data: Data, modified: Date)? {
@@ -135,7 +139,9 @@ actor CloudKitSyncService: CloudSyncing {
         )
         record[CloudKitSchema.sessionPayloadKey] = data as CKRecordValue
         record[CloudKitSchema.sessionModifiedAtKey] = modified as CKRecordValue
-        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        let result = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        guard let outcome = result.saveResults[recordID] else { throw CKError(.internalError) }
+        _ = try outcome.get()
     }
 
     func fetchAppPreferences() async throws -> (data: Data, modified: Date)? {
@@ -164,7 +170,9 @@ actor CloudKitSyncService: CloudSyncing {
         )
         record[CloudKitSchema.appPreferencesPayloadKey] = data as CKRecordValue
         record[CloudKitSchema.appPreferencesModifiedAtKey] = modified as CKRecordValue
-        _ = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        let result = try await db.modifyRecords(saving: [record], deleting: [], savePolicy: .changedKeys, atomically: true)
+        guard let outcome = result.saveResults[recordID] else { throw CKError(.internalError) }
+        _ = try outcome.get()
     }
 
     func registerZoneSubscriptionIfNeeded() async throws {

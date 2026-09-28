@@ -392,8 +392,11 @@ struct GameResultView: View {
     }
 
     var body: some View {
-        ScrollView {
-            resultContent
+        GeometryReader { viewport in
+            ScrollView {
+                resultContent
+                    .frame(minHeight: viewport.size.height, alignment: .center)
+            }
         }
         .safeAreaInset(edge: .bottom) {
             newGameButton

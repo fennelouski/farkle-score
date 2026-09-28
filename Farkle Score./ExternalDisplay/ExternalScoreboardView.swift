@@ -12,6 +12,7 @@ import SwiftUI
 struct ExternalScoreboardView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// DEBUG preview support: force the branded idle state regardless of store content.
     var forceIdle = false
@@ -61,6 +62,11 @@ struct ExternalScoreboardView: View {
         PlayerStandings.rankByPlayerID(for: store.players)
     }
 
+    private var winners: [Player] {
+        let playerRanks = ranks
+        return store.players.filter { playerRanks[$0.id] == 1 }
+    }
+
     private var hasLeader: Bool {
         PlayerStandings.hasScoreDifferentiation(for: store.players)
     }
@@ -80,9 +86,9 @@ struct ExternalScoreboardView: View {
         VStack(alignment: .leading, spacing: m.fs(24)) {
             ScoreboardHeader(metrics: m, store: store)
 
-            if store.gamePhase == .finished, let winner = store.winner {
-                WinnerBanner(metrics: m, winner: winner)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+            if store.gamePhase == .finished, !winners.isEmpty {
+                WinnerBanner(metrics: m, winners: winners)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.8).combined(with: .opacity))
             }
 
             if m.isWide {
@@ -460,33 +466,34 @@ private struct FeedRowView: View {
 
 private struct WinnerBanner: View {
     let metrics: ScoreboardMetrics
-    let winner: Player
-    @State private var celebrate = false
+    let winners: [Player]
     @Environment(\.colorSchemeContrast) private var contrast
+
+    private var winnerNames: String {
+        winners.map(\.name).formatted(.list(type: .and))
+    }
 
     var body: some View {
         let m = metrics
         HStack(spacing: m.fs(22)) {
-            Text("🏆")
+            Image(systemName: "trophy.fill")
                 .font(.system(size: m.fs(56)))
-                .rotationEffect(.degrees(celebrate ? 10 : -10))
-                .scaleEffect(celebrate ? 1.08 : 0.96)
+                .foregroundStyle(AppTheme.accentYellow(contrast))
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: m.fs(2)) {
-                Text("We have a winner!")
+                Text(winners.count > 1 ? "Joint winners" : "Winner")
                     .font(.system(size: m.fs(24), weight: .bold, design: .rounded))
                     .foregroundStyle(AppTheme.muted(contrast))
                     .textCase(.uppercase)
                     .kerning(m.fs(2))
-                Text("\(winner.name) · \(AppTheme.formatScore(winner.score)) points")
-                    .font(.system(size: m.fs(42), weight: .heavy, design: .rounded))
-                    .foregroundStyle(AppTheme.accentYellow(contrast))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+                if let winner = winners.first {
+                    Text("\(winnerNames) · \(AppTheme.formatScore(winner.score)) points\(winners.count > 1 ? " each" : "")")
+                        .font(.system(size: m.fs(42), weight: .heavy, design: .rounded))
+                        .foregroundStyle(AppTheme.accentYellow(contrast))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 0)
-            Text("🎉")
-                .font(.system(size: m.fs(46)))
-                .rotationEffect(.degrees(celebrate ? -8 : 8))
         }
         .padding(.horizontal, m.fs(32))
         .padding(.vertical, m.fs(18))
@@ -498,14 +505,11 @@ private struct WinnerBanner: View {
                         .stroke(AppTheme.accentYellow(contrast).opacity(0.6), lineWidth: m.fs(3))
                 )
         )
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                celebrate = true
-            }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(winner.name) wins with \(AppTheme.spokenScore(winner.score))"
+            winners.first.map { winner in
+                "\(winnerNames) \(winners.count > 1 ? "tie for the win" : "wins") with \(AppTheme.spokenScore(winner.score))\(winners.count > 1 ? " each" : "")"
+            } ?? "Game over"
         )
     }
 }

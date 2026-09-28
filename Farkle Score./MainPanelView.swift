@@ -25,14 +25,6 @@ struct MainPanelView: View {
     @AppStorage(AppSettings.historyDisplayModeStorageKey) private var historyDisplayModeRaw = HistoryDisplayMode.table.rawValue
     @State private var rowsShowingTotals: Set<Int> = []
 
-    private var leaderName: String {
-        store.winner?.name ?? "—"
-    }
-
-    private var leaderScore: Int {
-        store.winner?.score ?? 0
-    }
-
     private var stackVertically: Bool {
         horizontalSizeClass == .compact || dynamicTypeSize.isAccessibilitySize
     }
@@ -43,16 +35,25 @@ struct MainPanelView: View {
     }
 
     private var newGameConfirmationMessage: String {
-        var message = "All scores reset to zero and score history is cleared. Players and whose turn it is stay the same."
+        var message = "Reset scores and clear history. Keep the same players and turn order."
         if store.isGameInProgress {
-            message += " You can undo the reset right away from the header."
+            message += " You can undo this reset."
         }
         return message
     }
 
     var body: some View {
         Group {
-            if needsVerticalScroll {
+            if store.gamePhase == .finished {
+                GameResultView(
+                    onNewGame: { showNewGameConfirmation = true },
+                    onHistory: { showFullHistory = true },
+                    onUndo: {
+                        store.undoLastEntry()
+                        announce("Undid last score entry")
+                    }
+                )
+            } else if needsVerticalScroll {
                 ScrollView {
                     mainColumn
                         .padding(.bottom, 12)
@@ -86,23 +87,14 @@ struct MainPanelView: View {
                 selectedHistoryEntry = nil
             }
         }
-        .farkleHistoryEntryActionDialog(
-            entry: selectedHistoryEntry,
-            playerName: selectedHistoryEntry.map { playerName(for: $0.playerId) } ?? "",
-            canEdit: selectedHistoryEntry.map { canEditHistoryEntry($0) } ?? false,
-            onEdit: performEditHistoryEntry,
-            onDelete: performDeleteHistoryEntry,
-            onCancel: { selectedHistoryEntry = nil }
-        )
     }
 
     private var mainColumn: some View {
         VStack(alignment: .leading, spacing: layoutStyle == .phoneTabs ? 8 : 16) {
             header
-            if store.gamePhase != .regular {
+            if store.gamePhase == .finalRound {
                 gamePhaseBanner
             }
-
             ScoreInputView(onShowHistory: { showFullHistory = true })
         }
     }
@@ -110,10 +102,7 @@ struct MainPanelView: View {
     private var header: some View {
         Group {
             if layoutStyle == .phoneTabs {
-                // One compact row: whose turn it is, plus the entry-fixing actions.
-                HStack(spacing: 4) {
-                    TurnTitleView(fillsWidth: false, compact: true)
-                    Spacer(minLength: 4)
+                PhoneTurnHeader {
                     phoneHeaderActions
                 }
             } else if stackVertically {
@@ -137,10 +126,6 @@ struct MainPanelView: View {
                 Label("Final round: everyone gets one last turn.", systemImage: "flag.checkered")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.accentYellow(contrast))
-            } else if store.gamePhase == .finished {
-                Text("Winner: \(leaderName) (\(AppTheme.formatScore(leaderScore)))")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(AppTheme.primaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -169,7 +154,7 @@ struct MainPanelView: View {
             }
 
             if store.canUndoNewGame {
-                UndoNewGameButton {
+                UndoNewGameButton(compact: true) {
                     withAnimation(reduceMotion ? nil : .default) {
                         store.undoNewGame()
                     }
@@ -218,7 +203,10 @@ struct MainPanelView: View {
     }
 
     private var headerActions: some View {
-        HStack(spacing: 8) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
             if store.isGameInProgress || store.gamePhase == .finished {
                 NewGameIconButton {
                     showNewGameConfirmation = true
@@ -316,6 +304,14 @@ struct MainPanelView: View {
         .frame(minWidth: 480, minHeight: 360)
 #endif
         .farkleHistorySheet()
+        .farkleHistoryEntryActionDialog(
+            entry: selectedHistoryEntry,
+            playerName: selectedHistoryEntry.map { playerName(for: $0.playerId) } ?? "",
+            canEdit: selectedHistoryEntry.map { canEditHistoryEntry($0) } ?? false,
+            onEdit: performEditHistoryEntry,
+            onDelete: performDeleteHistoryEntry,
+            onCancel: { selectedHistoryEntry = nil }
+        )
     }
 
     private func playerName(for playerId: UUID) -> String {
@@ -358,12 +354,146 @@ struct MainPanelView: View {
     }
 }
 
+/// Move the actions below the title when they cannot share a readable phone row.
+struct PhoneTurnHeader<Actions: View>: View {
+    @ViewBuilder var actions: Actions
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 4) {
+                TurnTitleView(fillsWidth: false, compact: true)
+                    .fixedSize()
+                Spacer(minLength: 4)
+                actions
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                TurnTitleView(compact: true)
+                actions.frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Finished games replace score entry, keeping results and the next action in focus.
+struct GameResultView: View {
+    let onNewGame: () -> Void
+    let onHistory: () -> Void
+    let onUndo: () -> Void
+
+    @Environment(GameStore.self) private var store
+    @Environment(\.colorSchemeContrast) private var contrast
+    @AccessibilityFocusState private var resultFocused: Bool
+    @ScaledMetric(relativeTo: .title) private var avatarSize: CGFloat = 64
+
+    private var winners: [Player] {
+        let ranks = PlayerStandings.rankByPlayerID(for: store.players)
+        return store.players.filter { ranks[$0.id] == 1 }
+    }
+
+    var body: some View {
+        ScrollView {
+            resultContent
+        }
+        .safeAreaInset(edge: .bottom) {
+            newGameButton
+                .padding(16)
+                .frame(maxWidth: 560)
+                .frame(maxWidth: .infinity)
+                .background(AppTheme.background)
+        }
+        .onAppear { resultFocused = true }
+    }
+
+    private var resultContent: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 12) {
+                Image(systemName: "trophy.fill")
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .foregroundStyle(AppTheme.accentYellow(contrast))
+                    .padding(20)
+                    .background(Circle().fill(AppTheme.accentYellow(contrast).opacity(0.12)))
+                    .accessibilityHidden(true)
+
+                Text("Game over")
+                    .font(.title2.bold())
+                    .foregroundStyle(AppTheme.primaryText)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("farkle.gameOver")
+                    .accessibilityFocused($resultFocused)
+
+                Text(winners.count > 1 ? "Joint winners" : "Winner")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.muted(contrast))
+
+                ForEach(winners) { player in
+                    VStack(spacing: 8) {
+                        PlayerAvatarView(
+                            player: player,
+                            allPlayers: store.players,
+                            listIndex: store.players.firstIndex(where: { $0.id == player.id }) ?? 0,
+                            size: avatarSize
+                        )
+                        .accessibilityHidden(true)
+                        Text(player.name)
+                            .font(.system(.largeTitle, design: .rounded).bold())
+                            .foregroundStyle(AppTheme.primaryText)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(AppTheme.spokenScore(player.score))
+                            .font(.title3.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(AppTheme.muted(contrast))
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(player.name), winner, \(AppTheme.spokenScore(player.score))")
+                    .accessibilityIdentifier("farkle.winner.\(player.id)")
+                }
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { secondaryActions }
+                VStack(spacing: 8) { secondaryActions }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: 560)
+        .background(AppTheme.cardFill, in: RoundedRectangle(cornerRadius: AppTheme.cardCornerRadius))
+        .frame(maxWidth: .infinity)
+    }
+
+    private var newGameButton: some View {
+        Button(action: onNewGame) {
+            Label("New game", systemImage: "arrow.clockwise")
+                .font(.headline)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .accessibilityIdentifier("farkle.result.newGame")
+        .accessibilityHint("Opens a confirmation before resetting scores and clearing history")
+    }
+
+    @ViewBuilder
+    private var secondaryActions: some View {
+        Button(action: onHistory) {
+            Label("History", systemImage: "clock.arrow.circlepath").frame(minHeight: 44)
+        }
+        .accessibilityIdentifier("farkle.showHistory")
+        .disabled(store.history.isEmpty)
+        Button(action: onUndo) {
+            Label("Undo last entry", systemImage: "arrow.uturn.backward").frame(minHeight: 44)
+        }
+        .disabled(store.history.isEmpty)
+    }
+}
+
 /// The "<name>'s turn" title with avatar and current score. Inline in the main panel header
 /// on iPad/Mac; the sticky scroll header on iPhone.
 struct TurnTitleView: View {
     /// True when the title is the full row (stacked/phone layouts); false beside header actions.
     var fillsWidth: Bool = true
-    /// iPhone: a single bold line. The avatar and running score are already in the
+    /// iPhone: a compact title. The avatar and running score are already in the
     /// scoreboard strip and the add-score button, so repeating them just costs height.
     var compact: Bool = false
 
@@ -398,8 +528,7 @@ struct TurnTitleView: View {
         Text(turnTitle)
             .font(.system(.title2, design: .rounded).bold())
             .foregroundStyle(AppTheme.primaryText)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .leading)
             .accessibilityHidden(true)
     }

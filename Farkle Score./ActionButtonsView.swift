@@ -12,15 +12,7 @@ struct AddToScoreButton: View {
     var accentColor: Color
     var action: () -> Void
 
-    @ScaledMetric(relativeTo: .title3) private var avatarSize: CGFloat = 54
-    @ScaledMetric(relativeTo: .title3) private var buttonMinHeight: CGFloat = 68
-
-    private var buttonTitle: String {
-        if let player {
-            return "Add to \(player.name)'s score"
-        }
-        return "Add to score"
-    }
+    @ScaledMetric(relativeTo: .headline) private var avatarSize: CGFloat = 32
 
     private var accessibilityTitle: String {
         if let player {
@@ -42,18 +34,18 @@ struct AddToScoreButton: View {
                     .accessibilityHidden(true)
                 }
 
-                Text(buttonTitle)
-                    .font(.title3.weight(.bold))
+                Text("Add score")
+                    .font(.headline)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.75)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 22)
+            .padding(.vertical, 10)
             .frame(maxWidth: .infinity)
-            .frame(minHeight: buttonMinHeight)
+            .frame(minHeight: 52)
+            .fixedSize(horizontal: false, vertical: true)
             .farkleButtonHitArea()
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
@@ -79,8 +71,9 @@ struct ClearInputButton: View {
             Label("Clear", systemImage: "xmark.circle.fill")
                 .font(.headline.weight(.bold))
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
                 .frame(minHeight: 44)
-                .padding(.vertical, 16)
+                .fixedSize(horizontal: false, vertical: true)
                 .farkleButtonHitArea()
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
@@ -110,8 +103,9 @@ struct ShowHistoryButton: View {
             Label("History", systemImage: "clock.arrow.circlepath")
                 .font(.headline.weight(.bold))
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
                 .frame(minHeight: 44)
-                .padding(.vertical, 16)
+                .fixedSize(horizontal: false, vertical: true)
                 .farkleButtonHitArea()
                 .background(
                     RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
@@ -185,45 +179,51 @@ struct NewGameIconButton: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: "arrow.clockwise.circle")
-                .font(.title3)
-                .foregroundStyle(AppTheme.accentYellow(contrast))
-                .padding(8)
-                .farkleButtonHitArea()
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.stroke(contrast), lineWidth: 1)
-                )
-                .accessibilityHidden(true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("New game")
-        .accessibilityHint("Opens a confirmation before resetting scores and clearing history")
+        FarkleIconButton(
+            systemImage: "arrow.clockwise.circle",
+            label: "New game",
+            hint: "Opens a confirmation before resetting scores and clearing history",
+            tint: AppTheme.accentYellow(contrast),
+            action: action
+        )
     }
 }
 
 struct UndoNewGameButton: View {
     @Environment(\.colorSchemeContrast) private var contrast
+    var compact = false
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Label("Undo reset", systemImage: "arrow.uturn.backward.circle")
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .farkleButtonHitArea()
-                .background(
-                    RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                        .stroke(AppTheme.accentYellow(contrast), lineWidth: 1.5)
-                )
-                .accessibilityHidden(true)
+        if compact {
+            FarkleIconButton(
+                systemImage: "arrow.uturn.backward.circle",
+                label: "Undo new game",
+                hint: "Restores scores and history from before the reset",
+                identifier: "farkle.undoNewGame",
+                tint: AppTheme.accentYellow(contrast),
+                action: action
+            )
+        } else {
+            Button(action: action) {
+                Label("Undo reset", systemImage: "arrow.uturn.backward.circle")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 44)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .farkleButtonHitArea()
+                    .background(
+                        RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
+                            .stroke(AppTheme.accentYellow(contrast), lineWidth: 1.5)
+                    )
+                    .accessibilityHidden(true)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(AppTheme.accentYellow(contrast))
+            .accessibilityLabel("Undo new game")
+            .accessibilityHint("Restores scores and history from before the reset")
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(AppTheme.accentYellow(contrast))
-        .accessibilityLabel("Undo new game")
-        .accessibilityHint("Restores scores and history from before the reset")
     }
 }
 

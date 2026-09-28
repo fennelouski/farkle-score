@@ -31,7 +31,7 @@ struct GameRootView: View {
 
     private var layoutStyle: FarkleLayoutStyle {
 #if os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .phone {
+        if UIDevice.current.userInterfaceIdiom == .phone && !dynamicTypeSize.isAccessibilitySize {
             return .phoneTabs
         }
 #endif
@@ -40,7 +40,9 @@ struct GameRootView: View {
 
     var body: some View {
         Group {
-            if layoutStyle == .phoneTabs {
+            if store.gamePhase == .finished {
+                MainPanelView()
+            } else if layoutStyle == .phoneTabs {
                 phoneTabLayout
             } else if layoutStyle == .compactScroll {
                 compactLayout

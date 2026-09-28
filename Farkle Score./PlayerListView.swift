@@ -72,11 +72,10 @@ struct PlayerListView: View {
             }
         }
         .padding(16)
-        // iPhone presents this in a sheet that sizes to the content, so it must not be
-        // greedy vertically or there is nothing to measure.
+        // Sheets and the outer compact scroll view need the column's natural height.
         .frame(
             maxWidth: .infinity,
-            maxHeight: layoutStyle == .phoneTabs ? nil : .infinity,
+            maxHeight: layoutStyle != .sidebar || needsVerticalScroll ? nil : .infinity,
             alignment: .topLeading
         )
         .sheet(item: $editorMode) { mode in
@@ -137,7 +136,7 @@ struct PlayerListView: View {
             // iPhone shows this in a content-sized sheet: a greedy Spacer would both
             // bottom-anchor the pre-game setup below a screenful of nothing and stretch
             // the measured content height to the full screen.
-            if needsVerticalScroll || layoutStyle == .phoneTabs {
+            if needsVerticalScroll || layoutStyle != .sidebar {
                 Color.clear.frame(height: 8)
             } else {
                 Spacer(minLength: 12)
@@ -199,9 +198,9 @@ struct PlayerListView: View {
 
     @ViewBuilder
     private var inGamePlayersList: some View {
-        if layoutStyle == .phoneTabs {
-            // A plain stack, not a List: with at most six rows the List's scrolling buys
-            // nothing and its greedy height is what leaves the sheet half empty.
+        if layoutStyle != .sidebar || needsVerticalScroll {
+            // A List inside a ScrollView has no intrinsic height. Six content-sized
+            // rows work in both the compact scroll layout and the player sheet.
             VStack(spacing: PlayerRowLayoutMetrics.rowSpacing) {
                 ForEach(Array(store.players.enumerated()), id: \.element.id) { index, player in
                     // Rows carry maxHeight: .infinity for List; pin them to their natural
@@ -277,59 +276,75 @@ struct PlayerListView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("FARKLE")
-                    .font(.system(.largeTitle, design: .rounded).bold())
-                    .foregroundStyle(AppTheme.primaryText)
-                Text("Score Keeper")
-                    .font(.system(.title3, design: .rounded).bold())
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 8) {
+                headerTitle.fixedSize()
+                Spacer(minLength: 0)
+                headerActions.fixedSize()
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                headerTitle
+                headerActions.frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var headerTitle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("FARKLE")
+                .font(.system(.largeTitle, design: .rounded).bold())
+                .foregroundStyle(AppTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text("Score Keeper")
+                .font(.system(.title3, design: .rounded).bold())
+                .foregroundStyle(AppTheme.accentYellow(contrast))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        // Scoped to the wordmark so the three actions remain separate VoiceOver elements.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Farkle Score Keeper")
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: 0) {
+            Button {
+                showSavedPlayersLibrary = true
+            } label: {
+                Image(systemName: "person.2.fill")
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.primaryGreen)
+                    .padding(8)
+                    .farkleButtonHitArea()
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Saved players")
+
+            Button {
+                showRulesLibrary = true
+            } label: {
+                Image(systemName: "book.closed")
+                    .font(.title3)
                     .foregroundStyle(AppTheme.accentYellow(contrast))
+                    .padding(8)
+                    .farkleButtonHitArea()
             }
-            // Scoped to the wordmark: on the whole row this swallowed the three
-            // buttons beside it, hiding saved players / rules / settings from VoiceOver.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Farkle Score Keeper")
-            .accessibilityAddTraits(.isHeader)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Rule references")
 
-            Spacer(minLength: 8)
-            HStack(spacing: 0) {
-                Button {
-                    showSavedPlayersLibrary = true
-                } label: {
-                    Image(systemName: "person.2.fill")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.primaryGreen)
-                        .padding(8)
-                        .farkleButtonHitArea()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Saved players")
-
-                Button {
-                    showRulesLibrary = true
-                } label: {
-                    Image(systemName: "book.closed")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.accentYellow(contrast))
-                        .padding(8)
-                        .farkleButtonHitArea()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Rule references")
-
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.title3)
-                        .foregroundStyle(AppTheme.accentBlue(contrast))
-                        .padding(8)
-                        .farkleButtonHitArea()
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Settings")
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.title3)
+                    .foregroundStyle(AppTheme.accentBlue(contrast))
+                    .padding(8)
+                    .farkleButtonHitArea()
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
         }
     }
 

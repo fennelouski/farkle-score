@@ -457,6 +457,7 @@ struct GameResultView: View {
                 HStack(spacing: 16) { secondaryActions }
                 VStack(spacing: 8) { secondaryActions }
             }
+            .foregroundStyle(AppTheme.accentBlue(contrast))
         }
         .padding(24)
         .frame(maxWidth: 560)
@@ -503,6 +504,7 @@ struct TurnTitleView: View {
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .title) private var turnHeaderAvatarSize: CGFloat = 48
 
     private var activeName: String {
@@ -537,7 +539,10 @@ struct TurnTitleView: View {
     }
 
     private var fullTitle: some View {
-        HStack(alignment: .center, spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        return layout {
             activePlayerAvatar
 
             VStack(spacing: 8) {
@@ -546,16 +551,20 @@ struct TurnTitleView: View {
                     .foregroundStyle(AppTheme.primaryText)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .minimumScaleFactor(0.7)
                     .accessibilityHidden(true)
 
                 HStack(spacing: 4) {
-                    Text(scoreTitle)
-                        .foregroundStyle(AppTheme.muted(contrast))
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        Text(scoreTitle)
+                            .foregroundStyle(AppTheme.muted(contrast))
+                    }
                     Text(AppTheme.formatScore(activeScore))
                         .fontWeight(.bold)
                         .foregroundStyle(AppTheme.accentBlue(contrast))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .contentTransition(reduceMotion ? .identity : .numericText())
                         .animation(reduceMotion ? nil : .snappy, value: activeScore)
                 }

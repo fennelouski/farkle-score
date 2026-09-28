@@ -108,6 +108,33 @@ struct ButtonLayoutTests {
         expectFits(header, width: 288)
     }
 
+    @Test func compactAccessibilityRosterAddsHeightForEveryPlayer() {
+        func rosterSize(playerCount: Int) -> CGSize {
+            let players = (1...playerCount).map { Player(name: "Player \($0)", score: 100) }
+            let store = GameStore(players: players)
+            return measure(
+                PlayerListView()
+                    .environment(store)
+                    .environment(\.farkleLayoutStyle, .compactScroll)
+                    // The outer scroll view offers its content natural vertical space.
+                    .fixedSize(horizontal: false, vertical: true),
+                width: 320,
+                typeSize: .accessibility5
+            )
+        }
+
+        let onePlayer = rosterSize(playerCount: 1)
+        let twoPlayers = rosterSize(playerCount: 2)
+        let sixPlayers = rosterSize(playerCount: 6)
+        let addedRowHeight = twoPlayers.height - onePlayer.height
+
+        expectFits(onePlayer, width: 320)
+        expectFits(sixPlayers, width: 320)
+        #expect(addedRowHeight > 0, "A nested, collapsed List must not hide additional players")
+        #expect(sixPlayers.height >= onePlayer.height + 5 * addedRowHeight - 5,
+                "Every extra player needs its natural row height; allow one point of rounding per row")
+    }
+
     // The reset state has the most crowded action row. Use the real controls;
     // PhoneTurnHeader supplies the production adaptive title/row layout.
     private var resetStateActions: some View {

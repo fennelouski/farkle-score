@@ -23,6 +23,7 @@ struct PlayerRowView: View {
 
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(AppSettings.showStandingBadgesStorageKey) private var showStandingBadges = true
     @AppStorage(AppSettings.showStandingSecondThirdStorageKey) private var showStandingSecondThird = false
     @AppStorage(AppSettings.showStandingFourthPlusStorageKey) private var showStandingFourthPlus = false
@@ -87,8 +88,9 @@ struct PlayerRowView: View {
             font: nameFont
         )
         .foregroundStyle(AppTheme.primaryText)
-        .lineLimit(2)
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
         .minimumScaleFactor(0.85)
+        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
     }
 
     private var showsLeadingEditButton: Bool {
@@ -104,7 +106,10 @@ struct PlayerRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layout {
             leadingSlot
             selectButton
             if showsReorderHandle {
@@ -176,9 +181,13 @@ struct PlayerRowView: View {
                 if !showsLeadingEditButton {
                     indexLabel
                 }
-                ViewThatFits(in: .horizontal) {
-                    horizontalLayout
+                if dynamicTypeSize.isAccessibilitySize {
                     stackedLayout
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        horizontalLayout
+                        stackedLayout
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -204,8 +213,11 @@ struct PlayerRowView: View {
     }
 
     private var stackedLayout: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return VStack(alignment: .leading, spacing: 8) {
+            layout {
                 avatar
                 playerNameLabel
             }

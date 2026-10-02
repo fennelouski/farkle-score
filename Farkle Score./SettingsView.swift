@@ -8,6 +8,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
     @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
     @AppStorage(AppSettings.appearanceModeStorageKey) private var appearanceModeRaw = AppearanceMode.system.rawValue
@@ -17,6 +18,48 @@ struct SettingsView: View {
     @AppStorage(AppSettings.externalDisplayEnabledStorageKey) private var externalDisplayEnabled = true
     @State private var showRulesLibrary = false
     @State private var showCustomScoringEditor = false
+    @State private var activeArea: SettingsArea = .appearance
+    @ScaledMetric(relativeTo: .caption2) private var badgeSamplePadding: CGFloat = 8
+
+    private enum SettingsArea: String, CaseIterable, Identifiable {
+        case appearance, players, scoring, device, iCloud, about
+
+        var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .appearance: "Appearance"
+            case .players: "Players"
+            case .scoring: "Scoring"
+            case .device: "Device"
+            case .iCloud: "iCloud"
+            case .about: "About"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .appearance: "paintpalette"
+            case .players: "person.2"
+            case .scoring: "dice"
+            case .device: "display"
+            case .iCloud: "icloud"
+            case .about: "info.circle"
+            }
+        }
+    }
+
+    private var hasDeviceSettings: Bool {
+#if os(iOS)
+        true
+#else
+        DeviceHaptics.supportsUserSelectableHaptics
+#endif
+    }
+
+    private var availableAreas: [SettingsArea] {
+        SettingsArea.allCases.filter { $0 != .device || hasDeviceSettings }
+    }
 
     private var scoringPayload: ScoringPreferencesPayload {
         ScoringPreferencesPayload.decode(from: scoringPreferencesJSON)
@@ -44,9 +87,54 @@ struct SettingsView: View {
             ?? "Farkle Score"
     }
 
+    @ViewBuilder
     var body: some View {
+        if #available(iOS 18.0, macOS 15.0, visionOS 2.0, *) {
+            settingsRoot.presentationSizing(.page)
+        } else {
+            settingsRoot
+        }
+    }
+
+    private var settingsRoot: some View {
         NavigationStack {
-            formBody
+            GeometryReader { geometry in
+                let isWide = geometry.size.width >= (dynamicTypeSize.isAccessibilitySize ? 1100 : 680)
+                HStack(spacing: 0) {
+                    if isWide {
+                        List(selection: Binding<SettingsArea?>(
+                            get: { activeArea },
+                            set: { if let area = $0 { activeArea = area } }
+                        )) {
+                            ForEach(availableAreas) { area in
+                                Label {
+                                    Text(area.title)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                } icon: {
+                                    Image(systemName: area.symbol)
+                                        .fixedSize()
+                                }
+                                .frame(minHeight: 44, alignment: .leading)
+                                .tag(area)
+                            }
+                        }
+                        .listStyle(.sidebar)
+                        .frame(width: dynamicTypeSize.isAccessibilitySize ? 420 : 250)
+                        Divider()
+                    }
+                    formBody(isWide: isWide)
+                        .background {
+                            LinearGradient(
+                                colors: [AppTheme.accentBlue(contrast).opacity(0.10), AppTheme.accentYellow(contrast).opacity(0.04), .clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                            .background(.background)
+                        }
+                        .frame(maxWidth: 760)
+                        .frame(maxWidth: .infinity)
+                }
+            }
                 .navigationTitle("Settings")
 #if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
@@ -62,8 +150,11 @@ struct SettingsView: View {
         .farkleSheetChrome()
 #endif
 #if os(macOS)
-        .frame(minWidth: 480, minHeight: 360)
+        .frame(minWidth: 480, idealWidth: 940, minHeight: 360, idealHeight: 680)
 #endif
+        .onChange(of: availableAreas, initial: true) { _, areas in
+            if !areas.contains(activeArea) { activeArea = .appearance }
+        }
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
                 .farkleRulesSheet()
@@ -85,8 +176,40 @@ struct SettingsView: View {
         }
     }
 
-    private var formBody: some View {
+    private func formBody(isWide: Bool) -> some View {
         Form {
+            if !isWide {
+                Section {
+                    Menu {
+                        Picker("Settings section", selection: $activeArea) {
+                            ForEach(availableAreas) { area in
+                                Label(area.title, systemImage: area.symbol)
+                                    .tag(area)
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: activeArea.symbol)
+                                .fixedSize()
+                            Text(activeArea.title)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
+                        }
+                        .foregroundStyle(.primary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Settings section")
+                    .accessibilityValue(activeArea.title)
+                }
+            }
+            switch activeArea {
+            case .appearance:
             Section {
                 Picker("Appearance", selection: $appearanceModeRaw) {
                     ForEach(AppearanceMode.allCases) { mode in
@@ -98,11 +221,11 @@ struct SettingsView: View {
 
                 Text("System follows your device's light or dark setting.")
                     .font(.footnote)
-                    .foregroundStyle(AppTheme.muted(contrast))
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("Appearance")
             }
-
+            case .players:
             Section {
                 Toggle("Show standing badges", isOn: $showStandingBadges)
                     .tint(AppTheme.accentBlue(contrast))
@@ -130,11 +253,12 @@ struct SettingsView: View {
                     "Badges reflect current scores. The crown shows for 1st place when standing badges are on; medals and rank numbers are optional."
                 )
                 .font(.footnote)
-                .foregroundStyle(AppTheme.muted(contrast))
+                .foregroundStyle(.secondary)
             } header: {
                 Text("Players")
             }
-
+            badgePreview
+            case .scoring:
             Section {
                 Picker("Scoring ruleset", selection: templateRulesetBinding) {
                     ForEach(RulesLibrary.allMetadata) { meta in
@@ -160,14 +284,14 @@ struct SettingsView: View {
                 if let subtitle = selectedRulesetMeta?.localizedSubtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.footnote)
-                        .foregroundStyle(AppTheme.muted(contrast))
+                        .foregroundStyle(.secondary)
                 }
 
                 Text(
                     "Keypad quick scores and the scoring engine follow the active rules. Open rule references for full text."
                 )
                 .font(.footnote)
-                .foregroundStyle(AppTheme.muted(contrast))
+                .foregroundStyle(.secondary)
 
                 if let sourceURL = selectedRulesetMeta?.sourceURL {
                     Link("View rules source", destination: sourceURL)
@@ -192,11 +316,12 @@ struct SettingsView: View {
 
                 Text("Turn it on here first, then enable auto-advance on the player list if you want that behavior.")
                     .font(.footnote)
-                    .foregroundStyle(AppTheme.muted(contrast))
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("Scoring")
             }
-
+            scoringPreview
+            case .device:
             if DeviceHaptics.supportsUserSelectableHaptics {
                 Section {
                     Toggle(
@@ -230,12 +355,12 @@ struct SettingsView: View {
                     "Mirror your iPhone to an Apple TV (or plug into any screen) and everyone sees a live scoreboard while you keep scoring on your phone. Turn off to mirror your screen as usual."
                 )
                 .font(.footnote)
-                .foregroundStyle(AppTheme.muted(contrast))
+                .foregroundStyle(.secondary)
             } header: {
                 Text("Apple TV & External Screens")
             }
 #endif
-
+            case .iCloud:
             Section {
                 Toggle(
                     "Sync in-progress game",
@@ -253,7 +378,7 @@ struct SettingsView: View {
                     "Roster and score history still sync when this is off. Turn on to include the active match for handoff between devices."
                 )
                 .font(.footnote)
-                .foregroundStyle(AppTheme.muted(contrast))
+                .foregroundStyle(.secondary)
                 if CloudSyncController.deletions.pendingCount > 0 {
                     Text("Deleted items are hidden on this device. Their iCloud removal is waiting for a connection or a successful retry.")
                         .font(.footnote)
@@ -264,7 +389,7 @@ struct SettingsView: View {
             } header: {
                 Text("iCloud")
             }
-
+            case .about:
             Section {
                 LabeledContent("App", value: appDisplayName)
                 LabeledContent("Version", value: shortVersion)
@@ -284,19 +409,56 @@ struct SettingsView: View {
                 }
                 if AppStoreLinks.privacyPolicyURL == nil && AppStoreLinks.supportURL == nil {
                     Text(
-                        "Before submission, set FarklePrivacyPolicyURL and FarkleSupportURL in Info.plist (https URLs) to match App Store Connect."
+                        "Privacy and support information is currently unavailable."
                     )
                     .font(.footnote)
-                    .foregroundStyle(AppTheme.muted(contrast))
+                    .foregroundStyle(.secondary)
                 }
             } header: {
                 Text("App Store")
                     .accessibilityIdentifier("farkle.settings.appStoreSectionHeader")
             }
+            }
         }
+        .scrollContentBackground(.hidden)
 #if os(macOS)
         .formStyle(.grouped)
 #endif
+    }
+
+    private var badgePreview: some View {
+        let options = StandingBadgeOptions(
+            showBadges: showStandingBadges,
+            showSecondThird: showStandingSecondThird,
+            showFourthPlus: showStandingFourthPlus
+        )
+        return Section("Badge samples") {
+            ForEach(1 ... 4, id: \.self) { rank in
+                PlayerNameStandingBadgeView(
+                    name: PlayerStandings.spokenPlace(rank),
+                    rank: rank,
+                    options: options
+                )
+                .foregroundStyle(.primary)
+                .padding(.vertical, badgeSamplePadding)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Sample, \(PlayerStandings.spokenPlace(rank))")
+                .accessibilityValue(options.shouldShowBadge(for: rank) ? "Badge shown" : "Badge hidden")
+            }
+        }
+    }
+
+    private var scoringPreview: some View {
+        let profile = scoringPayload.resolvedProfile()
+        return Section("Active scoring values") {
+            LabeledContent("Single 1", value: AppTheme.formatScore(profile.singleOne))
+                .accessibilityValue(AppTheme.spokenScore(profile.singleOne))
+            LabeledContent("Single 5", value: AppTheme.formatScore(profile.singleFive))
+                .accessibilityValue(AppTheme.spokenScore(profile.singleFive))
+            LabeledContent("Three 1s", value: AppTheme.formatScore(profile.triplePoints(for: 1)))
+                .accessibilityValue(AppTheme.spokenScore(profile.triplePoints(for: 1)))
+        }
+        .foregroundStyle(.primary)
     }
 
     private var templateRulesetBinding: Binding<String> {

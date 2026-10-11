@@ -84,8 +84,8 @@ final class Farkle_Score_UITests: XCTestCase {
             "Add-player control must expose the 'Add player' accessibility label"
         )
         XCTAssertTrue(
-            hasLabeledElement("Players, 6 maximum"),
-            "Players section header must expose its expanded accessibility label"
+            hasLabeledElement("Players"),
+            "Players section header must expose its accessibility label"
         )
 
         // Player row labels are constructed as "<name>, position N, <score> points"

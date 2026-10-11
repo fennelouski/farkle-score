@@ -18,6 +18,7 @@ struct PhoneScoreTabView: View {
         }
         .sheet(isPresented: $showPlayers) {
             PlayerListView()
+                .hardwareScoreInputSuppressionActive()
                 .farkleFittedSheetChrome()
                 .farkleScreenBackground()
         }

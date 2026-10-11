@@ -5,14 +5,38 @@
 
 import SwiftUI
 
+enum AutoAdvanceVisualPhase: Equatable {
+    case idle
+    case crossfading
+    case progressing(Double)
+}
+
+enum AutoAdvanceTiming {
+    static let crossfadeDuration: TimeInterval = 0.35
+    static let progressDuration: TimeInterval = 3.65
+}
+
 struct AddToScoreButton: View {
     var player: Player?
     var allPlayers: [Player]
     var listIndex: Int
     var accentColor: Color
+    var autoAdvancePhase: AutoAdvanceVisualPhase = .idle
     var action: () -> Void
 
     @ScaledMetric(relativeTo: .headline) private var avatarSize: CGFloat = 32
+    @ScaledMetric(relativeTo: .title3) private var buttonMinHeight: CGFloat = 52
+
+    private var isAnimating: Bool {
+        autoAdvancePhase != .idle
+    }
+
+    private var buttonTitle: String {
+        if let player {
+            return "Add to \(player.name)'s score"
+        }
+        return "Add to score"
+    }
 
     private var accessibilityTitle: String {
         if let player {
@@ -21,25 +45,41 @@ struct AddToScoreButton: View {
         return "Add to score"
     }
 
+    private var progressFill: Double {
+        switch autoAdvancePhase {
+        case .idle, .crossfading:
+            return 0
+        case .progressing(let fill):
+            return fill
+        }
+    }
+
+    private var contentOpacity: Double {
+        switch autoAdvancePhase {
+        case .idle:
+            return 1
+        case .crossfading, .progressing:
+            return 0
+        }
+    }
+
+    private var progressTrackOpacity: Double {
+        switch autoAdvancePhase {
+        case .idle:
+            return 0
+        case .crossfading, .progressing:
+            return 1
+        }
+    }
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                if let player {
-                    PlayerAvatarView(
-                        player: player,
-                        allPlayers: allPlayers,
-                        listIndex: listIndex,
-                        size: avatarSize
-                    )
-                    .accessibilityHidden(true)
-                }
+            ZStack {
+                progressBarLayer
+                    .opacity(progressTrackOpacity)
 
-                Text("Add score")
-                    .font(.headline)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityHidden(true)
+                buttonContentLayer
+                    .opacity(contentOpacity)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -51,14 +91,75 @@ struct AddToScoreButton: View {
                 RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
                     .fill(accentColor)
             )
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.cornerRadius))
         }
         .buttonStyle(.plain)
         .foregroundStyle(.black)
+        .disabled(isAnimating)
+        .allowsHitTesting(!isAnimating)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityTitle)
-        .accessibilityHint("Adds the entered amount to the active player's score")
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(accessibilityHintText)
         .accessibilityIdentifier("farkle.addToScore")
         .accessibilityAddTraits(.isButton)
+        .animation(.easeInOut(duration: AutoAdvanceTiming.crossfadeDuration), value: autoAdvancePhase)
+    }
+
+    private var buttonContentLayer: some View {
+        HStack(spacing: 14) {
+            if let player {
+                PlayerAvatarView(
+                    player: player,
+                    allPlayers: allPlayers,
+                    listIndex: listIndex,
+                    size: avatarSize
+                )
+                .accessibilityHidden(true)
+            }
+
+            Text("Add score")
+                .font(.headline)
+                .multilineTextAlignment(.leading)
+                .lineLimit(2)
+                .minimumScaleFactor(0.75)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var progressBarLayer: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadius - 4)
+                    .fill(Color.black.opacity(0.2))
+                    .accessibilityHidden(true)
+
+                RoundedRectangle(cornerRadius: AppTheme.cornerRadius - 4)
+                    .fill(Color.black.opacity(0.35))
+                    .frame(width: max(0, geometry.size.width * progressFill))
+                    .animation(.linear(duration: AutoAdvanceTiming.progressDuration), value: progressFill)
+                    .accessibilityHidden(true)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: buttonMinHeight - 44)
+    }
+
+    private var accessibilityLabel: String {
+        switch autoAdvancePhase {
+        case .idle:
+            return accessibilityTitle
+        case .crossfading, .progressing:
+            return "Advancing to next player"
+        }
+    }
+
+    private var accessibilityHintText: String {
+        switch autoAdvancePhase {
+        case .idle:
+            return "Adds the entered amount to the active player's score"
+        case .crossfading, .progressing:
+            return "Auto-advancing to the next player"
+        }
     }
 }
 

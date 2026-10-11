@@ -22,6 +22,7 @@ struct MainPanelView: View {
     @State private var showRulesLibrary = false
     @State private var selectedHistoryEntry: ScoreEntry?
     @AppStorage(AppSettings.historyShowTimesStorageKey) private var historyShowTimes = true
+    @AppStorage(AppSettings.historyShowScoreTypesStorageKey) private var historyShowScoreTypes = true
     @AppStorage(AppSettings.historyDisplayModeStorageKey) private var historyDisplayModeRaw = HistoryDisplayMode.table.rawValue
     @State private var rowsShowingTotals: Set<Int> = []
 
@@ -64,10 +65,12 @@ struct MainPanelView: View {
         }
         .sheet(isPresented: $showFullHistory) {
             historySheet
+                .hardwareScoreInputSuppressionActive()
         }
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
                 .farkleRulesSheet()
+                .hardwareScoreInputSuppressionActive()
         }
         .farkleConfirmationDialog(
             isPresented: $showNewGameConfirmation,
@@ -123,7 +126,7 @@ struct MainPanelView: View {
     private var gamePhaseBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             if store.gamePhase == .finalRound {
-                Label("Final round: everyone gets one last turn.", systemImage: "flag.checkered")
+                Label("Final round: everyone else gets one last turn.", systemImage: "flag.checkered")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(AppTheme.accentYellow(contrast))
             }
@@ -275,6 +278,7 @@ struct MainPanelView: View {
                         players: store.players,
                         history: store.history,
                         showTimes: $historyShowTimes,
+                        showScoreTypes: $historyShowScoreTypes,
                         displayMode: historyDisplayModeBinding,
                         rowsShowingTotals: $rowsShowingTotals,
                         playerColorIndex: { store.playerColorIndex(for: $0) },
@@ -452,6 +456,14 @@ struct GameResultView: View {
                     .accessibilityIdentifier("farkle.winner.\(player.id)")
                 }
             }
+
+            FinalRankingsView(onShowHistory: onHistory)
+
+            ShareGameResultsButton(
+                players: store.players,
+                history: store.history,
+                winner: store.winner
+            )
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 16) { secondaryActions }

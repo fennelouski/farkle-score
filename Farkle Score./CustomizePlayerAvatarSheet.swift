@@ -53,6 +53,7 @@ struct CustomizePlayerAvatarSheet: View {
 #endif
         .sheet(isPresented: $showEmojiEntrySheet) {
             emojiEntrySheet
+                .hardwareScoreInputSuppressionActive()
         }
         .webImagePicker(isPresented: $showWebImagePicker) { selections in
             guard let selection = selections.first else { return }

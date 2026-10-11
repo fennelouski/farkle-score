@@ -12,7 +12,6 @@ final class GameStore {
 
     private static let maxInputDigits = 9
     private static let minPlayers = 1
-    private static let maxPlayers = 6
     static let targetScore = 10_000
 
     enum GamePhase: String, Codable, Sendable {
@@ -35,6 +34,10 @@ final class GameStore {
 
     /// Snapshot taken immediately before the most recent `newGame()`; session-only (not persisted).
     private var newGameUndoSnapshot: GameStoreState?
+
+    /// Called with the outgoing game's snapshot when a new game starts, so the
+    /// app can archive it. Session-only; set by the app after construction.
+    @ObservationIgnored var onArchiveOutgoingGame: ((GameStoreState) -> Void)?
 
     init(
         players: [Player] = GameStore.defaultPlayers(),
@@ -81,9 +84,29 @@ final class GameStore {
         return GameStore(players: p, activePlayerIndex: 0, currentInput: "1250")
     }
 
-    /// Deterministic mid-game state for App Store screenshots: a full six-player roster with
-    /// customized avatars and three rounds of history (including farkles) so player lists,
-    /// round tables, and the TV scoreboard all look lived-in.
+    /// Finished game for previews of final standings UI.
+    static var previewFinished: GameStore {
+        var players = defaultPlayers()
+        players[0].score = 10_500
+        players[1].score = 11_200
+        players[2].score = 9_800
+        let t0 = Date(timeIntervalSinceReferenceDate: 700_001_000)
+        let t1 = Date(timeIntervalSinceReferenceDate: 700_001_100)
+        let t2 = Date(timeIntervalSinceReferenceDate: 700_001_200)
+        let history: [ScoreEntry] = [
+            ScoreEntry(playerId: players[0].id, amount: 500, timestamp: t0),
+            ScoreEntry(playerId: players[1].id, amount: 1200, timestamp: t1),
+            ScoreEntry(playerId: players[2].id, amount: 800, timestamp: t2),
+        ]
+        return GameStore(
+            players: players,
+            activePlayerIndex: 1,
+            history: history,
+            gamePhase: .finished
+        )
+    }
+
+    /// Deterministic mid-game state for App Store screenshots.
     static var screenshotFixture: GameStore {
         let players = [
             Player(name: "Alice", score: 8700, avatarEmoji: "🎲", avatarColorIndex: 0),
@@ -147,7 +170,7 @@ final class GameStore {
     }
 
     var canAddPlayer: Bool {
-        players.count < Self.maxPlayers
+        true
     }
 
     var canRemovePlayerDownToMinimum: Bool {
@@ -197,10 +220,10 @@ final class GameStore {
 
     func replaceRoster(with entries: [QuickSetupEntry]) {
         guard !isGameInProgress else { return }
-        guard entries.count >= Self.minPlayers, entries.count <= Self.maxPlayers else { return }
+        guard entries.count >= Self.minPlayers else { return }
 
         var newPlayers: [Player] = []
-        for entry in entries.prefix(Self.maxPlayers) {
+        for entry in entries {
             var photoName = entry.avatarPhotoFileName
             if let profileId = entry.profileId,
                let adopted = try? AvatarImageStore.adoptPhotoForProfile(
@@ -233,7 +256,7 @@ final class GameStore {
         let trimmed = names
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        guard !trimmed.isEmpty, trimmed.count <= Self.maxPlayers else { return }
+        guard !trimmed.isEmpty else { return }
         let entries = PlayerAppearanceAssignment.assignAppearances(
             for: trimmed,
             existingProfiles: existingProfiles
@@ -394,9 +417,12 @@ final class GameStore {
         return Int(currentInput) ?? 0
     }
 
-    func addToScore() {
+    func addToScore(advanceTurn: Bool = true) {
         guard gamePhase != .finished else { return }
         guard var active = activePlayer else { return }
+        if gamePhase == .finalRound, !finalRoundPendingPlayerIDs.contains(active.id) {
+            return
+        }
         let amount = resolvedTurnAmount
         let wasInFinalRound = gamePhase == .finalRound
         active.score += amount
@@ -406,14 +432,16 @@ final class GameStore {
             history.append(ScoreEntry(playerId: active.id, amount: amount, breakdown: breakdown))
         }
 
+        var didStartFinalRound = false
         if gamePhase == .regular, active.score >= Self.targetScore {
             startFinalRound(triggeredBy: active.id)
+            didStartFinalRound = true
         } else if wasInFinalRound {
             completeFinalRoundTurn(for: active.id)
         }
 
         clearTurnInput()
-        if gamePhase != .finished {
+        if gamePhase != .finished, didStartFinalRound || advanceTurn {
             advanceTurnIfNeeded()
         }
         clearNewGameUndoSnapshot()
@@ -465,6 +493,9 @@ final class GameStore {
     func newGame() {
         if isGameInProgress {
             newGameUndoSnapshot = snapshot
+        }
+        if !history.isEmpty {
+            onArchiveOutgoingGame?(snapshot)
         }
         applyNewGameReset()
     }
@@ -680,8 +711,25 @@ final class GameStore {
     }
 
     private func advanceTurnIfNeeded() {
-        guard autoAdvanceAfterScore, players.count > 1 else { return }
-        activePlayerIndex = nextPlayerIndex(from: activePlayerIndex)
+        advanceToNextPlayer()
+    }
+
+    func advanceToNextPlayer() {
+        guard players.count > 1 else { return }
+        if gamePhase == .finalRound {
+            guard !finalRoundPendingPlayerIDs.isEmpty else { return }
+            let pendingIDs = Set(finalRoundPendingPlayerIDs)
+            var idx = nextPlayerIndex(from: activePlayerIndex)
+            for _ in 0 ..< players.count {
+                if pendingIDs.contains(players[idx].id) {
+                    activePlayerIndex = idx
+                    return
+                }
+                idx = nextPlayerIndex(from: idx)
+            }
+        } else {
+            activePlayerIndex = nextPlayerIndex(from: activePlayerIndex)
+        }
     }
 
     private func nextPlayerIndex(from index: Int) -> Int {
@@ -690,9 +738,13 @@ final class GameStore {
     }
 
     private func startFinalRound(triggeredBy playerID: UUID) {
-        gamePhase = .finalRound
         finalRoundTriggerPlayerID = playerID
-        finalRoundPendingPlayerIDs = players.map(\.id)
+        finalRoundPendingPlayerIDs = players.map(\.id).filter { $0 != playerID }
+        if finalRoundPendingPlayerIDs.isEmpty {
+            gamePhase = .finished
+        } else {
+            gamePhase = .finalRound
+        }
     }
 
     private func applyNewGameReset() {
@@ -732,6 +784,9 @@ final class GameStore {
         }
         let validIDs = Set(players.map(\.id))
         finalRoundPendingPlayerIDs = finalRoundPendingPlayerIDs.filter { validIDs.contains($0) }
+        if let triggerID = finalRoundTriggerPlayerID {
+            finalRoundPendingPlayerIDs.removeAll { $0 == triggerID }
+        }
         if gamePhase == .finalRound, finalRoundPendingPlayerIDs.isEmpty {
             gamePhase = .finished
         }

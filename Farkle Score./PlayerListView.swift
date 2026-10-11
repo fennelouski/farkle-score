@@ -15,14 +15,12 @@ private struct PlayerListViewportHeightKey: PreferenceKey {
 
 struct PlayerListView: View {
     private static let playerListRowInsets = EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0)
-
     @Environment(GameStore.self) private var store
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.farkleLayoutStyle) private var layoutStyle
-    @AppStorage(AppSettings.showAutoAdvanceTurnOptionStorageKey) private var showAutoAdvanceTurnOption = false
     @State private var editorMode: PlayerEditorMode?
     @State private var showSavedPlayersLibrary = false
     @State private var showSettings = false
@@ -82,22 +80,27 @@ struct PlayerListView: View {
             PlayerEditorSheet(mode: mode) {
                 editorMode = nil
             }
+            .hardwareScoreInputSuppressionActive()
         }
         .sheet(isPresented: $showSavedPlayersLibrary) {
             SavedPlayersLibraryView()
+                .hardwareScoreInputSuppressionActive()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .farkleSheetChrome()
+                .hardwareScoreInputSuppressionActive()
         }
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
                 .farkleRulesSheet()
+                .hardwareScoreInputSuppressionActive()
         }
         .sheet(isPresented: $showQuickSetupSheet) {
             QuickPlayerSetupSheet(mode: quickSetupMode) {
                 showQuickSetupSheet = false
             }
+            .hardwareScoreInputSuppressionActive()
         }
         .farkleConfirmationDialog(
             isPresented: $showClearRosterConfirmation,
@@ -124,11 +127,11 @@ struct PlayerListView: View {
             header
                 .padding(.bottom, 16)
 
-            Text(isGameStarted ? "Players" : "Players (6 max)")
+            Text("Players")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(AppTheme.muted(contrast))
                 .padding(.bottom, 8)
-                .accessibilityLabel(isGameStarted ? "Players" : "Players, 6 maximum")
+                .accessibilityLabel("Players")
                 .accessibilityAddTraits(.isHeader)
 
             playersList
@@ -140,18 +143,6 @@ struct PlayerListView: View {
                 Color.clear.frame(height: 8)
             } else {
                 Spacer(minLength: 12)
-            }
-
-            if showAutoAdvanceTurnOption {
-                Toggle("Auto-advance turn", isOn: Binding(
-                    get: { store.autoAdvanceAfterScore },
-                    set: { store.autoAdvanceAfterScore = $0 }
-                ))
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(AppTheme.muted(contrast))
-                    .tint(AppTheme.accentBlue(contrast))
-                    .padding(.vertical, 8)
-                    .accessibilityHint("When on, the next player is selected automatically after each score is added")
             }
 
             if !isGameStarted {
@@ -262,6 +253,7 @@ struct PlayerListView: View {
             showsReorderHandle: showsReorderHandle,
             showsEditButton: !isGameStarted,
             isProminent: canEmphasizeActivePlayer && index == store.activePlayerIndex,
+            deemphasizeWhenInactive: isGameStarted,
             isDragging: draggingPlayerID == player.id,
             onReorderDragBegan: { draggingPlayerID = player.id }
         )
@@ -426,12 +418,10 @@ struct PlayerListView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(AppTheme.accentBlue(contrast))
-        .disabled(!store.canAddPlayer)
-        .opacity(store.canAddPlayer ? 1 : 0.45)
         .padding(.bottom, 8)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Add player")
-        .accessibilityHint(store.canAddPlayer ? "Opens a form to add a new player" : "Maximum number of players reached")
+        .accessibilityHint("Opens a form to add a new player")
         .accessibilityAddTraits(.isButton)
     }
 

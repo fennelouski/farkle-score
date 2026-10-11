@@ -13,6 +13,7 @@ enum PlayerRowLayoutMetrics {
     static let rowSpacing: CGFloat = 8
     private static let standardVerticalPadding: CGFloat = 10
     private static let editTapTargetBase: CGFloat = 44
+    private static let prominentContentTopInset: CGFloat = 20
 
     static func estimatedRowHeight(prominent: Bool, dynamicTypeSize: DynamicTypeSize) -> CGFloat {
         let avatar = scaled(AppTheme.avatarSize, relativeTo: .headline, dynamicTypeSize: dynamicTypeSize)
@@ -23,8 +24,14 @@ enum PlayerRowLayoutMetrics {
         )
         let editTarget = scaled(editTapTargetBase, relativeTo: .body, dynamicTypeSize: dynamicTypeSize)
         let scoreHeight = scaledScoreLineHeight(prominent: prominent, dynamicTypeSize: dynamicTypeSize)
+        let topInset = scaled(prominentContentTopInset, relativeTo: .subheadline, dynamicTypeSize: dynamicTypeSize)
 
-        let contentHeight = max(prominent ? prominentAvatar : avatar, editTarget, scoreHeight)
+        let contentHeight: CGFloat
+        if prominent {
+            contentHeight = topInset + max(prominentAvatar, scoreHeight) + editTarget
+        } else {
+            contentHeight = max(avatar, editTarget, scoreHeight)
+        }
         let verticalPadding = prominent
             ? AppTheme.activePlayerRowVerticalPadding
             : standardVerticalPadding

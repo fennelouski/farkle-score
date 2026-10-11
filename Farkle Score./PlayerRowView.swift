@@ -18,9 +18,13 @@ struct PlayerRowView: View {
     var showsReorderHandle: Bool = false
     var showsEditButton: Bool = false
     var isProminent: Bool = false
+    var deemphasizeWhenInactive: Bool = false
     var isDragging: Bool = false
     var onReorderDragBegan: (() -> Void)?
+    /// When set, overrides `@AppStorage` standing-badge settings (used by screenshot fixtures).
+    var standingBadgeOptionsOverride: StandingBadgeOptions? = nil
 
+    @Namespace private var rowChrome
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -33,9 +37,21 @@ struct PlayerRowView: View {
     @ScaledMetric(relativeTo: .body) private var leadingSlotWidth: CGFloat = 18
     @ScaledMetric private var standardVerticalPadding: CGFloat = 10
     @ScaledMetric private var prominentVerticalPadding = AppTheme.activePlayerRowVerticalPadding
+    @ScaledMetric(relativeTo: .subheadline) private var prominentContentTopInset: CGFloat = 20
 
     private var cardStrokeWidth: CGFloat {
-        contrast == .increased ? 3 : 2
+        let base: CGFloat = contrast == .increased ? 3 : 2
+        return isProminent ? base + 1 : base
+    }
+
+    private var rowOpacity: Double {
+        if isDragging { return 0.35 }
+        if deemphasizeWhenInactive && !isActive { return AppTheme.inactivePlayerRowOpacity }
+        return 1
+    }
+
+    private var cardBackgroundFill: Color {
+        isActive ? AppTheme.activePlayerRowFill : AppTheme.cardFill
     }
 
     private var effectiveAvatarSize: CGFloat {
@@ -47,11 +63,19 @@ struct PlayerRowView: View {
     }
 
     private var nameFont: Font {
-        isProminent ? .title3.weight(.semibold) : .body.weight(.medium)
+        isProminent ? .title2.weight(.semibold) : .body.weight(.medium)
+    }
+
+    private var indexChromeID: String {
+        "turnIndex-\(player.id.uuidString)"
+    }
+
+    private var editChromeID: String {
+        "edit-\(player.id.uuidString)"
     }
 
     private var standingBadgeOptions: StandingBadgeOptions {
-        StandingBadgeOptions(
+        standingBadgeOptionsOverride ?? StandingBadgeOptions(
             showBadges: showStandingBadges,
             showSecondThird: showStandingSecondThird,
             showFourthPlus: showStandingFourthPlus
@@ -105,12 +129,19 @@ struct PlayerRowView: View {
             .accessibilityHidden(true)
     }
 
+    private var prominentIndexLabel: some View {
+        Text("\(index + 1)")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.muted(contrast))
+            .accessibilityHidden(true)
+    }
+
     var body: some View {
         let layout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
             : AnyLayout(HStackLayout(spacing: 12))
         return layout {
-            leadingSlot
+            if !isProminent { leadingSlot }
             selectButton
             if showsReorderHandle {
                 reorderHandle
@@ -120,7 +151,7 @@ struct PlayerRowView: View {
         .padding(.vertical, rowVerticalPadding)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
-                .fill(AppTheme.cardFill)
+                .fill(cardBackgroundFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: AppTheme.cornerRadius)
@@ -129,9 +160,21 @@ struct PlayerRowView: View {
                     lineWidth: cardStrokeWidth
                 )
         )
-        .opacity(isDragging ? 0.35 : 1)
+        .overlay(alignment: .topLeading) {
+            if isProminent {
+                prominentIndexLabel
+                    .matchedGeometryEffect(id: indexChromeID, in: rowChrome)
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            if isProminent {
+                prominentEditButton
+            }
+        }
+        .opacity(rowOpacity)
         .animation(reduceMotion ? nil : .snappy, value: isProminent)
         .animation(reduceMotion ? nil : .snappy, value: isDragging)
+        .animation(reduceMotion ? nil : .snappy, value: isActive)
         .contextMenu {
             if let onEdit {
                 Button {
@@ -161,44 +204,84 @@ struct PlayerRowView: View {
     @ViewBuilder
     private var leadingSlot: some View {
         if showsLeadingEditButton, let onEdit {
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(AppTheme.accentYellow(contrast))
-                    .frame(width: leadingSlotWidth, alignment: .leading)
-                    .frame(width: editTapTarget, height: editTapTarget, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .frame(width: editTapTarget, height: editTapTarget, alignment: .leading)
-            .accessibilityLabel("Edit \(player.name)")
+            editButton(action: onEdit)
+                .matchedGeometryEffect(id: editChromeID, in: rowChrome)
         }
+    }
+
+    @ViewBuilder
+    private var prominentEditButton: some View {
+        if showsLeadingEditButton, let onEdit {
+            editButton(action: onEdit)
+                .matchedGeometryEffect(id: editChromeID, in: rowChrome)
+        }
+    }
+
+    private func editButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: "pencil")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(AppTheme.accentYellow(contrast))
+                .frame(width: leadingSlotWidth, alignment: .leading)
+                .frame(width: editTapTarget, height: editTapTarget, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .frame(width: editTapTarget, height: editTapTarget, alignment: .leading)
+        .accessibilityLabel("Edit \(player.name)")
     }
 
     private var selectButton: some View {
         Button(action: onSelect) {
-            HStack(spacing: 12) {
-                if !showsLeadingEditButton {
-                    indexLabel
-                }
-                if dynamicTypeSize.isAccessibilitySize {
-                    stackedLayout
+            Group {
+                if isProminent {
+                    prominentLayout
                 } else {
-                    ViewThatFits(in: .horizontal) {
-                        horizontalLayout
-                        stackedLayout
-                    }
+                    standardSelectContent
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderless)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityRowLabel)
         .accessibilityValue(isActive ? "Active turn" : "")
         .accessibilityHint("Selects this player as the active turn")
         .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private var standardSelectContent: some View {
+        HStack(spacing: 12) {
+            if !showsLeadingEditButton {
+                indexLabel
+                    .matchedGeometryEffect(id: indexChromeID, in: rowChrome)
+            }
+            if dynamicTypeSize.isAccessibilitySize {
+                stackedLayout
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    horizontalLayout
+                    stackedLayout
+                }
+            }
+        }
+    }
+
+    private var prominentLayout: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        return layout {
+            avatar
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                playerNameLabel
+                Spacer(minLength: 0)
+                trailingSlot
+            }
+        }
+        .padding(.top, prominentContentTopInset)
+        .padding(.bottom, showsLeadingEditButton ? editTapTarget : 0)
     }
 
     private var horizontalLayout: some View {
@@ -286,7 +369,7 @@ struct PlayerRowView: View {
     }
 }
 
-#Preview("Standard") {
+#Preview("Standard Active") {
     PlayerRowView(
         index: 0,
         player: Player(name: "Kathatherine", score: 8700),
@@ -299,16 +382,110 @@ struct PlayerRowView: View {
     .background(AppTheme.background)
 }
 
-#Preview("Prominent") {
+#Preview("Standard Inactive") {
+    PlayerRowView(
+        index: 1,
+        player: Player(name: "Alex", score: 4200),
+        allPlayers: [
+            Player(name: "Kathatherine", score: 8700),
+            Player(name: "Alex", score: 4200),
+        ],
+        isActive: false,
+        onSelect: {},
+        onEdit: {}
+    )
+    .padding()
+    .background(AppTheme.background)
+}
+
+#Preview("Prominent Active") {
     PlayerRowView(
         index: 0,
-        player: Player(name: "Kathatherine", score: 8700),
-        allPlayers: [Player(name: "Kathatherine", score: 8700)],
+        player: Player(name: "Nathan", score: 2300),
+        allPlayers: [Player(name: "Nathan", score: 2300)],
         isActive: true,
         onSelect: {},
         onEdit: {},
         isProminent: true
     )
     .padding()
+    .background(AppTheme.background)
+}
+
+#Preview("Prominent With Standing Badge") {
+    let players = [
+        Player(name: "Jordan", score: 5000),
+        Player(name: "Nathan", score: 2300),
+    ]
+    return PlayerRowView(
+        index: 1,
+        player: players[1],
+        allPlayers: players,
+        isActive: true,
+        onSelect: {},
+        onEdit: {},
+        isProminent: true
+    )
+    .padding()
+    .background(AppTheme.background)
+}
+
+#Preview("Standard vs Prominent") {
+    let players = [
+        Player(name: "Jordan", score: 5000),
+        Player(name: "Nathan", score: 2300),
+    ]
+    return VStack(spacing: 8) {
+        PlayerRowView(
+            index: 0,
+            player: players[0],
+            allPlayers: players,
+            isActive: false,
+            onSelect: {},
+            onEdit: {}
+        )
+        PlayerRowView(
+            index: 1,
+            player: players[1],
+            allPlayers: players,
+            isActive: true,
+            onSelect: {},
+            onEdit: {},
+            isProminent: true
+        )
+    }
+    .padding()
+    .background(AppTheme.background)
+}
+
+#Preview("Standing Badge Name Matrix") {
+    let names = ["Nathan", "Katie", "Emma", "Luke", "Eli"]
+    let scoresByRank = [5000, 4000, 3000, 2000, 1000]
+    let allBadgesOn = StandingBadgeOptions(
+        showBadges: true,
+        showSecondThird: true,
+        showFourthPlus: true
+    )
+
+    return ScrollView {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(names.enumerated()), id: \.offset) { index, name in
+                let players = names.enumerated().map { offset, rosterName in
+                    Player(name: rosterName, score: scoresByRank[offset])
+                }
+                let player = players[index]
+                PlayerRowView(
+                    index: index,
+                    player: player,
+                    allPlayers: players,
+                    isActive: true,
+                    onSelect: {},
+                    onEdit: {},
+                    standingBadgeOptionsOverride: allBadgesOn
+                )
+            }
+        }
+        .padding()
+    }
     .background(AppTheme.background)
 }

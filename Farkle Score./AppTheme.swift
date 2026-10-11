@@ -84,6 +84,14 @@ enum AppTheme {
         darkHighContrast: UIColor(red: 0.12, green: 0.14, blue: 0.18, alpha: 1)
     )
 
+    /// Slightly elevated card fill for the active turn row.
+    static let activePlayerRowFill = color(
+        light: UIColor(red: 0.94, green: 0.93, blue: 0.88, alpha: 1),
+        dark: UIColor(red: 0.14, green: 0.14, blue: 0.12, alpha: 1),
+        lightHighContrast: UIColor(red: 0.98, green: 0.97, blue: 0.92, alpha: 1),
+        darkHighContrast: UIColor(red: 0.16, green: 0.16, blue: 0.14, alpha: 1)
+    )
+
     static let keypadButtonFill = color(
         light: UIColor(red: 0.86, green: 0.89, blue: 0.94, alpha: 1),
         dark: UIColor(red: 0.14, green: 0.16, blue: 0.20, alpha: 1),
@@ -156,6 +164,7 @@ enum AppTheme {
     #else
     static let cardFill = Color(red: 0.10, green: 0.12, blue: 0.16)
     #endif
+    static let activePlayerRowFill = Color(red: 0.14, green: 0.14, blue: 0.12)
     static let cardStroke = Color.white.opacity(0.18)
     static let keypadButtonFill = Color(red: 0.14, green: 0.16, blue: 0.20)
     static let displayInset = Color.black.opacity(0.45)
@@ -173,8 +182,10 @@ enum AppTheme {
     /// they grow with Dynamic Type. Kept here as defaults so visual constants
     /// stay centralised.
     static let avatarSize: CGFloat = 40
-    static let activePlayerRowAvatarSize: CGFloat = 56
+    static let activePlayerRowAvatarSize: CGFloat = 64
     static let activePlayerRowVerticalPadding: CGFloat = 16
+    /// Opacity for non-active player rows when the game is in progress.
+    static let inactivePlayerRowOpacity: Double = 0.55
     #if os(visionOS)
     static let keypadKeyMinHeight: CGFloat = 60
     #else

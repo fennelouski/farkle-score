@@ -7,7 +7,6 @@ import Foundation
 
 enum RosterSeeding {
     private nonisolated static let minPlayers = 1
-    private nonisolated static let maxPlayers = 6
 
     /// When iCloud has a roster, it becomes the source of truth for player ids and names; local scores
     /// are kept only for rows whose id still exists on the cloud roster.
@@ -30,13 +29,10 @@ enum RosterSeeding {
             combined.append(Player(name: "Player \(n)", score: 0))
             n += 1
         }
-        if combined.count > maxPlayers {
-            combined = Array(combined.prefix(maxPlayers))
-        }
         return combined
     }
 
-    /// Returns up to six players with scores zeroed, preserving stable ids from the cloud roster.
+    /// Returns players with scores zeroed, preserving stable ids from the cloud roster.
     /// Pads with default-named players until at least one exists.
     nonisolated static func playersByPaddingRoster(_ roster: [Player]) -> [Player] {
         var players = roster.map {
@@ -54,9 +50,6 @@ enum RosterSeeding {
         while players.count < minPlayers {
             players.append(Player(name: "Player \(n)", score: 0))
             n += 1
-        }
-        if players.count > maxPlayers {
-            players = Array(players.prefix(maxPlayers))
         }
         return players
     }

@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct GameCompletionTests {
-    @Test func finalRoundWaitsForEveryPlayerIncludingTriggerAndZeroScoreTurn() {
+    @Test func finalRoundWaitsForOtherPlayersIncludingZeroScoreTurn() {
         let alice = Player(name: "Alice", score: 9_900)
         let bob = Player(name: "Bob", score: 9_800)
         let chris = Player(name: "Chris", score: 1_000)
@@ -14,20 +14,14 @@ struct GameCompletionTests {
         store.addToScore()
         #expect(store.gamePhase == .finalRound)
         #expect(store.finalRoundTriggerPlayerID == alice.id)
-        #expect(Set(store.finalRoundPendingPlayerIDs) == Set([alice.id, bob.id, chris.id]))
+        #expect(Set(store.finalRoundPendingPlayerIDs) == Set([bob.id, chris.id]))
         #expect(store.activePlayer?.id == bob.id)
 
         store.setPreset(300)
         store.addToScore()
         #expect(store.gamePhase == .finalRound)
-        #expect(Set(store.finalRoundPendingPlayerIDs) == Set([alice.id, chris.id]))
+        #expect(Set(store.finalRoundPendingPlayerIDs) == Set([chris.id]))
         #expect(store.activePlayer?.id == chris.id)
-
-        store.clearInput()
-        store.addToScore()
-        #expect(store.gamePhase == .finalRound)
-        #expect(store.finalRoundPendingPlayerIDs == [alice.id])
-        #expect(store.activePlayer?.id == alice.id)
 
         store.clearInput()
         store.addToScore()
@@ -35,7 +29,7 @@ struct GameCompletionTests {
         #expect(store.finalRoundPendingPlayerIDs.isEmpty)
         #expect(store.winner?.id == bob.id)
         #expect(store.winner?.score == 10_100)
-        #expect(store.activePlayer?.id == alice.id, "Completion does not advance to another turn")
+        #expect(store.activePlayer?.id == chris.id, "Completion does not advance to another turn")
         #expect(store.history.map(\.amount) == [100, 300], "Zero-score final turns count without inventing score entries")
     }
 

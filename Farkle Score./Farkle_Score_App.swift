@@ -78,7 +78,7 @@ struct Farkle_Score_App: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "farkle-score-entry") {
             rootContent
                 .environment(gameStore)
                 .environment(profileStore)
@@ -113,6 +113,10 @@ struct Farkle_Score_App: App {
                 }
 #endif
         }
+#if os(visionOS)
+        .defaultSize(width: 1120, height: 800)
+        .windowResizability(.contentMinSize)
+#endif
 #if os(iOS) || os(macOS) || os(visionOS)
         .commands {
             CommandGroup(replacing: .undoRedo) {
@@ -136,6 +140,19 @@ struct Farkle_Score_App: App {
                 }
             }
         }
+#if os(visionOS)
+        WindowGroup("Live scoreboard", id: "farkle-live-scoreboard") {
+            FarkleSpatialScoreboard()
+                .environment(gameStore)
+                .environment(profileStore)
+        }
+        .defaultSize(width: 1000, height: 700)
+        .windowResizability(.contentMinSize)
+        .defaultWindowPlacement { _, context in
+            guard let entry = context.windows.first(where: { $0.id == "farkle-score-entry" }) else { return WindowPlacement(nil) }
+            return WindowPlacement(.trailing(entry))
+        }
+#endif
     }
 
     /// Main phone/tablet UI, or — under the DEBUG `-externalDisplayPreview` launch argument —

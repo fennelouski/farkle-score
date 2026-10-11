@@ -5,12 +5,12 @@
 
 import SwiftUI
 
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
 import UIKit
 #endif
 
 enum AppTheme {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
     private static func dynamicUIColor(
         light: UIColor,
         dark: UIColor,
@@ -140,14 +140,22 @@ enum AppTheme {
 
 #else
 
+    #if os(visionOS)
+    static let background = Color.clear
+    #else
     static let background = Color(red: 0.07, green: 0.09, blue: 0.12)
+    #endif
 
     /// Player tint is iOS-only; other platforms keep the plain background.
     static func background(tintedToward accent: Color, fraction: CGFloat = 0.22) -> Color {
         background
     }
 
+    #if os(visionOS)
+    static let cardFill = Color.white.opacity(0.08)
+    #else
     static let cardFill = Color(red: 0.10, green: 0.12, blue: 0.16)
+    #endif
     static let cardStroke = Color.white.opacity(0.18)
     static let keypadButtonFill = Color(red: 0.14, green: 0.16, blue: 0.20)
     static let displayInset = Color.black.opacity(0.45)
@@ -167,7 +175,11 @@ enum AppTheme {
     static let avatarSize: CGFloat = 40
     static let activePlayerRowAvatarSize: CGFloat = 56
     static let activePlayerRowVerticalPadding: CGFloat = 16
+    #if os(visionOS)
+    static let keypadKeyMinHeight: CGFloat = 60
+    #else
     static let keypadKeyMinHeight: CGFloat = 52
+    #endif
     static let inputDisplayCursorHeight: CGFloat = 36
     static let activeMarkerSize: CGFloat = 8
 
@@ -287,7 +299,7 @@ enum AppTheme {
     }
 
     static func muted(_ contrast: ColorSchemeContrast) -> Color {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
         Color(uiColor: dynamicUIColor(
             light: mutedLight,
             dark: mutedDark,
@@ -300,7 +312,7 @@ enum AppTheme {
     }
 
     static func stroke(_ contrast: ColorSchemeContrast) -> Color {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
         cardStroke
 #else
         contrast == .increased ? Color.white.opacity(0.32) : Color.white.opacity(0.18)
@@ -308,7 +320,7 @@ enum AppTheme {
     }
 
     static func accentBlue(_ contrast: ColorSchemeContrast) -> Color {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
         accentBlue
 #else
         contrast == .increased ? Color(red: 0.65, green: 0.78, blue: 1.0) : Color(red: 0.45, green: 0.65, blue: 1.0)
@@ -316,7 +328,7 @@ enum AppTheme {
     }
 
     static func accentYellow(_ contrast: ColorSchemeContrast) -> Color {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
         accentYellow
 #else
         contrast == .increased ? Color(red: 1.0, green: 0.92, blue: 0.45) : Color(red: 1.0, green: 0.85, blue: 0.2)
@@ -324,7 +336,7 @@ enum AppTheme {
     }
 
     static func primaryGreen(_ contrast: ColorSchemeContrast) -> Color {
-#if canImport(UIKit)
+#if canImport(UIKit) && !os(visionOS)
         primaryGreen
 #else
         contrast == .increased ? Color(red: 0.35, green: 0.88, blue: 0.55) : Color(red: 0.2, green: 0.78, blue: 0.45)
@@ -357,6 +369,12 @@ enum AppTheme {
 extension View {
     /// Expands hit testing to the view's laid-out bounds for `.plain` buttons (not just text/icons).
     func farkleButtonHitArea(cornerRadius: CGFloat = AppTheme.cornerRadius) -> some View {
+        #if os(visionOS)
+        self.frame(minWidth: 60, minHeight: 60)
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .hoverEffect()
+        #else
         contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+        #endif
     }
 }

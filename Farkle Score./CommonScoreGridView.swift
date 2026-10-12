@@ -38,8 +38,7 @@ struct CommonScoreGridView: View {
                                 .font(.caption2.weight(.medium))
                                 .foregroundStyle(AppTheme.primaryText.opacity(0.85))
                                 .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.8)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)

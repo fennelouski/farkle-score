@@ -87,7 +87,7 @@ struct RulesDetailView: View {
                                     } label: {
                                         Text(entry.title)
                                             .font(.caption.weight(.semibold))
-                                            .lineLimit(2)
+                                            .lineLimit(nil)
                                             .multilineTextAlignment(.center)
                                             .fixedSize(horizontal: false, vertical: true)
                                             .padding(.horizontal, 12)

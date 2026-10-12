@@ -105,7 +105,7 @@ struct RulesLibraryView: View {
             HStack(spacing: 12) {
                 Label(activeRulesTitle, systemImage: "checklist")
                     .labelStyle(.titleAndIcon)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 8)
 

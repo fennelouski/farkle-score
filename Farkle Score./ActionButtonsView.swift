@@ -120,8 +120,7 @@ struct AddToScoreButton: View {
             Text("Add score")
                 .font(.headline)
                 .multilineTextAlignment(.leading)
-                .lineLimit(2)
-                .minimumScaleFactor(0.75)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityHidden(true)
         }

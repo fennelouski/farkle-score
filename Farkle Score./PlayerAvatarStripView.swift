@@ -98,8 +98,7 @@ struct PlayerAvatarStripView: View {
                 Text("Players")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppTheme.muted(contrast))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(width: width)
             .padding(.vertical, 6)

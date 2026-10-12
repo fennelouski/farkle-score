@@ -32,7 +32,7 @@ struct TurnScoreBreakdownView: View {
                 Text(entry.label)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(AppTheme.primaryText)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(AppTheme.formatScore(entry.value))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(AppTheme.accentYellow(contrast))

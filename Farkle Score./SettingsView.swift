@@ -125,11 +125,11 @@ struct SettingsView: View {
                 .navigationTitle("Settings")
                 .navigationSplitViewColumnWidth(min: 250, ideal: dynamicTypeSize.isAccessibilitySize ? 420 : 250)
                 .accessibilityIdentifier("settings.categories")
+                .toolbar { if selectedArea == nil { doneButton } }
             } detail: {
                 NavigationStack { settingsDetail(for: activeArea) }
                     .id(activeArea)
             }
-            .toolbar { doneButton }
             .onAppear {
                 if allowsInitialDetail && isWide && selectedArea == nil { selectedArea = activeArea }
             }
@@ -160,8 +160,9 @@ struct SettingsView: View {
     }
 
     private var doneButton: some ToolbarContent {
-        ToolbarItem(placement: .confirmationAction) {
+        ToolbarItem(id: "settings-close", placement: .confirmationAction) {
             Button("Done") { dismiss() }
+                .accessibilityIdentifier("settings.done")
         }
     }
 
@@ -188,6 +189,7 @@ struct SettingsView: View {
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
             .navigationTitle(area.title)
+            .toolbar { doneButton }
 #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
 #endif

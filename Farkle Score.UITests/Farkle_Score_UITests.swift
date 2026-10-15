@@ -255,7 +255,7 @@ final class CompactSettingsNavigationTests: XCTestCase {
     private func checkCategories(largerText: Bool) throws {
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }
-        let app = XCUIApplication()
+        let app = XCUIApplication(); app.launchArguments = ["-screenshotMode"]
         if largerText {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
@@ -267,19 +267,81 @@ final class CompactSettingsNavigationTests: XCTestCase {
         settings.tap()
         let categories = app.descendants(matching: .any).matching(identifier: "settings.categories").firstMatch
         XCTAssertTrue(categories.waitForExistence(timeout: 5), "Settings must start with the visible category list")
-        for (id, title) in [("appearance", "Appearance"), ("players", "Players"), ("scoring", "Scoring")] {
+        XCTAssertTrue(app.buttons["settings.done"].isHittable, "The settings list needs Done")
+        record("categories-\(largerText)", app: app)
+        if #available(iOS 17.0, *) { try app.performAccessibilityAudit(for: [.sufficientElementDescription, .trait]) }
+        for (id, title) in [("appearance", "Appearance"), ("players", "Players"), ("scoring", "Scoring"), ("device", "Device"), ("iCloud", "iCloud"), ("about", "About")] {
             let row = app.descendants(matching: .any).matching(identifier: "settings.section.\(id)").firstMatch
             for _ in 0..<8 where !row.isHittable { app.swipeUp() }
             XCTAssertTrue(row.isHittable, "Category must remain reachable with larger text")
+            XCTAssertEqual(row.label, title)
             row.tap()
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["settings.done"].isHittable, "The category detail needs Done")
+            record("detail-\(id)-\(largerText)", app: app)
             XCUIDevice.shared.orientation = .landscapeLeft
             XCUIDevice.shared.orientation = .portrait
             XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), "Rotation must retain the open category")
-            let back = app.navigationBars.buttons["Settings"]
+            let back = app.navigationBars[title].buttons["BackButton"]
             XCTAssertTrue(back.waitForExistence(timeout: 5), "Category detail needs native Back")
+            XCTAssertEqual(back.label, "Settings")
             back.tap()
             XCTAssertTrue(categories.waitForExistence(timeout: 5))
+            XCTAssertTrue(row.isHittable, "Returning Back must expose the originating category")
         }
+        app.buttons["settings.done"].tap()
+        XCTAssertFalse(categories.exists, "Done must dismiss Settings")
+    }
+
+    @MainActor
+    func testRegularSplitSelectionAndRotation() throws {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication(); app.launchArguments = ["-screenshotMode"]; app.launch()
+        guard app.frame.width >= 600 else { throw XCTSkip("Use the dedicated iPad fixture") }
+        UITestNavigation.openPlayersTabIfPresent(app)
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10)); settings.tap()
+        for (id, title) in [("appearance", "Appearance"), ("players", "Players"), ("scoring", "Scoring")] {
+            let row = app.descendants(matching: .any).matching(identifier: "settings.section.\(id)").firstMatch
+            for _ in 0..<8 where !row.isHittable { app.swipeUp() }
+            XCTAssertTrue(row.isHittable); row.tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            XCUIDevice.shared.orientation = .landscapeLeft
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            record("ipad-\(id)", app: app)
+            XCTAssertTrue(app.buttons["settings.done"].isHittable)
+            XCUIDevice.shared.orientation = .portrait
+        }
+    }
+
+    @MainActor
+    private func record(_ name: String, app: XCUIApplication) {
+        let screen = XCTAttachment(screenshot: app.screenshot()); screen.name = name; screen.lifetime = .keepAlways; add(screen)
+        let tree = XCTAttachment(string: app.debugDescription); tree.name = name + " accessibility"; tree.lifetime = .keepAlways; add(tree)
+    }
+}
+
+
+extension CompactSettingsNavigationTests {
+    @MainActor
+    func testSavedGamesBackStateSurvivesRotation() throws {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication(); app.launchArguments = ["-screenshotMode"]; app.launch()
+        UITestNavigation.openPlayersTabIfPresent(app)
+        app.buttons["Settings"].tap()
+        let cloud = app.buttons["settings.section.iCloud"]
+        XCTAssertTrue(cloud.waitForExistence(timeout: 5)); cloud.tap()
+        app.buttons["Saved games"].tap()
+        XCTAssertTrue(app.navigationBars["Saved games"].waitForExistence(timeout: 5))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.navigationBars["Saved games"].waitForExistence(timeout: 5))
+        record("saved-games-after-rotation", app: app)
+        app.navigationBars["Saved games"].buttons["BackButton"].tap()
+        XCTAssertTrue(app.navigationBars["iCloud"].waitForExistence(timeout: 5))
+        app.navigationBars["iCloud"].buttons["BackButton"].tap()
+        XCTAssertTrue(cloud.waitForExistence(timeout: 5))
     }
 }

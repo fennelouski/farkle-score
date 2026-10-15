@@ -109,6 +109,7 @@ final class Farkle_Score_UITests: XCTestCase {
         settingsButton.tap()
 
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
+        app.descendants(matching: .any).matching(identifier: "settings.section.about").firstMatch.tap()
 
         // The form is lazy: on iPhone the App Store section is below the fold and is not
         // instantiated until scrolled into view.
@@ -233,4 +234,52 @@ final class Farkle_Score_UITests: XCTestCase {
         )
     }
 
+}
+
+
+/// Run on an isolated iPhone simulator fixture; these tests never need accounts.
+final class CompactSettingsNavigationTests: XCTestCase {
+    override func setUpWithError() throws { continueAfterFailure = false }
+
+    @MainActor
+    func testCategoryListAndNativeBack() throws {
+        try checkCategories(largerText: false)
+    }
+
+    @MainActor
+    func testCategoryListAndNativeBackAtLargestDynamicType() throws {
+        try checkCategories(largerText: true)
+    }
+
+    @MainActor
+    private func checkCategories(largerText: Bool) throws {
+        XCUIDevice.shared.orientation = .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication()
+        if largerText {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
+        guard app.frame.width < 600 else { throw XCTSkip("Use a compact iPhone fixture") }
+        UITestNavigation.openPlayersTabIfPresent(app)
+        let settings = app.buttons["Settings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        settings.tap()
+        let categories = app.descendants(matching: .any).matching(identifier: "settings.categories").firstMatch
+        XCTAssertTrue(categories.waitForExistence(timeout: 5), "Settings must start with the visible category list")
+        for (id, title) in [("appearance", "Appearance"), ("players", "Players"), ("scoring", "Scoring")] {
+            let row = app.descendants(matching: .any).matching(identifier: "settings.section.\(id)").firstMatch
+            for _ in 0..<8 where !row.isHittable { app.swipeUp() }
+            XCTAssertTrue(row.isHittable, "Category must remain reachable with larger text")
+            row.tap()
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
+            XCUIDevice.shared.orientation = .landscapeLeft
+            XCUIDevice.shared.orientation = .portrait
+            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5), "Rotation must retain the open category")
+            let back = app.navigationBars.buttons["Settings"]
+            XCTAssertTrue(back.waitForExistence(timeout: 5), "Category detail needs native Back")
+            back.tap()
+            XCTAssertTrue(categories.waitForExistence(timeout: 5))
+        }
+    }
 }

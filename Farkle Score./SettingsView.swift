@@ -9,6 +9,9 @@ struct SettingsView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @Environment(GameStore.self) private var store
     @Environment(SavedGamesStore.self) private var savedGamesStore
     @AppStorage(AppSettings.scoringPreferencesJSONStorageKey) private var scoringPreferencesJSON: String = ""
@@ -22,6 +25,8 @@ struct SettingsView: View {
     @State private var showRulesLibrary = false
     @State private var showCustomScoringEditor = false
     @State private var activeArea: SettingsArea = .appearance
+    @State private var selectedArea: SettingsArea?
+    @State private var compactColumn: NavigationSplitViewColumn = .sidebar
     @ScaledMetric(relativeTo: .caption2) private var badgeSamplePadding: CGFloat = 8
 
     private enum SettingsArea: String, CaseIterable, Identifiable {
@@ -90,6 +95,14 @@ struct SettingsView: View {
             ?? "Farkle Score"
     }
 
+    private var allowsInitialDetail: Bool {
+        #if os(iOS)
+        horizontalSizeClass == .regular
+        #else
+        true
+        #endif
+    }
+
     @ViewBuilder
     var body: some View {
         if #available(iOS 18.0, macOS 15.0, visionOS 2.0, *) {
@@ -100,53 +113,29 @@ struct SettingsView: View {
     }
 
     private var settingsRoot: some View {
-        NavigationStack {
-            GeometryReader { geometry in
-                let isWide = geometry.size.width >= (dynamicTypeSize.isAccessibilitySize ? 1100 : 680)
-                HStack(spacing: 0) {
-                    if isWide {
-                        List(selection: Binding<SettingsArea?>(
-                            get: { activeArea },
-                            set: { if let area = $0 { activeArea = area } }
-                        )) {
-                            ForEach(availableAreas) { area in
-                                Label {
-                                    Text(area.title)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                } icon: {
-                                    Image(systemName: area.symbol)
-                                        .fixedSize()
-                                }
-                                .frame(minHeight: 44, alignment: .leading)
-                                .tag(area)
-                            }
-                        }
-                        .listStyle(.sidebar)
-                        .frame(width: dynamicTypeSize.isAccessibilitySize ? 420 : 250)
-                        Divider()
+        GeometryReader { geometry in
+            let isWide = geometry.size.width >= (dynamicTypeSize.isAccessibilitySize ? 1100 : 680)
+            NavigationSplitView(preferredCompactColumn: $compactColumn) {
+                List(selection: $selectedArea) {
+                    ForEach(availableAreas) { area in
+                        NavigationLink(value: area) { areaLabel(area) }
                     }
-                    formBody(isWide: isWide)
-                        .background {
-                            LinearGradient(
-                                colors: [AppTheme.accentBlue(contrast).opacity(0.10), AppTheme.accentYellow(contrast).opacity(0.04), .clear],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            .background(.background)
-                        }
-                        .frame(maxWidth: 760)
-                        .frame(maxWidth: .infinity)
                 }
-            }
+                .listStyle(.sidebar)
                 .navigationTitle("Settings")
-#if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-#endif
-                .toolbar {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                    }
-                }
+                .navigationSplitViewColumnWidth(min: 250, ideal: dynamicTypeSize.isAccessibilitySize ? 420 : 250)
+                .accessibilityIdentifier("settings.categories")
+            } detail: {
+                NavigationStack { settingsDetail(for: activeArea) }
+                    .id(activeArea)
+            }
+            .toolbar { doneButton }
+            .onAppear {
+                if allowsInitialDetail && isWide && selectedArea == nil { selectedArea = activeArea }
+            }
+            .onChange(of: selectedArea) { _, area in
+                if let area { activeArea = area }
+            }
         }
         .farkleVerticalSafeAreaFade()
 #if os(iOS)
@@ -157,6 +146,7 @@ struct SettingsView: View {
 #endif
         .onChange(of: availableAreas, initial: true) { _, areas in
             if !areas.contains(activeArea) { activeArea = .appearance }
+            if let selectedArea, !areas.contains(selectedArea) { self.selectedArea = nil }
         }
         .sheet(isPresented: $showRulesLibrary) {
             RulesLibraryView()
@@ -169,6 +159,41 @@ struct SettingsView: View {
         }
     }
 
+    private var doneButton: some ToolbarContent {
+        ToolbarItem(placement: .confirmationAction) {
+            Button("Done") { dismiss() }
+        }
+    }
+
+    private func areaLabel(_ area: SettingsArea) -> some View {
+        Label {
+            Text(area.title).fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: area.symbol).fixedSize()
+        }
+        .frame(minHeight: 44, alignment: .leading)
+        .accessibilityIdentifier("settings.section.\(area.rawValue)")
+    }
+
+    private func settingsDetail(for area: SettingsArea) -> some View {
+        formBody(for: area)
+            .background {
+                LinearGradient(
+                    colors: [AppTheme.accentBlue(contrast).opacity(0.10), AppTheme.accentYellow(contrast).opacity(0.04), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .background(.background)
+            }
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+            .navigationTitle(area.title)
+#if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+#endif
+            .accessibilityIdentifier("settings.detail.\(area.rawValue)")
+    }
+
     private func commitScoringPayload(_ payload: ScoringPreferencesPayload) {
         AppSettings.saveScoringPreferences(payload)
         if let str = try? payload.jsonEncodedString() {
@@ -179,39 +204,9 @@ struct SettingsView: View {
         }
     }
 
-    private func formBody(isWide: Bool) -> some View {
+    private func formBody(for area: SettingsArea) -> some View {
         Form {
-            if !isWide {
-                Section {
-                    Menu {
-                        Picker("Settings section", selection: $activeArea) {
-                            ForEach(availableAreas) { area in
-                                Label(area.title, systemImage: area.symbol)
-                                    .tag(area)
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Image(systemName: activeArea.symbol)
-                                .fixedSize()
-                            Text(activeArea.title)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 8)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .accessibilityHidden(true)
-                        }
-                        .foregroundStyle(.primary)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Settings section")
-                    .accessibilityValue(activeArea.title)
-                }
-            }
-            switch activeArea {
+            switch area {
             case .appearance:
             Section {
                 Picker("Appearance", selection: $appearanceModeRaw) {
